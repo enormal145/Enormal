@@ -1,0 +1,308 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+local PROJECT_ID = "470e2ed53cba47a2ad78827fe653b54b"
+local DISCORD_URL = "https://discord.gg/centu-sherman-1348168772862869514"
+
+local apiSuccess, api = pcall(function()
+    return loadstring(game:HttpGet("https://sdkapi-public.luarmor.net/library.lua"))()
+end)
+
+if not apiSuccess or not api then
+    return
+end
+
+api.script_id = PROJECT_ID
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "enormal"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local parent = PlayerGui
+pcall(function()
+    if gethui then parent = gethui() end
+end)
+gui.Parent = parent
+
+local function create(class, props, parentObject)
+    local obj = Instance.new(class)
+    for property, value in pairs(props) do
+        obj[property] = value
+    end
+    obj.Parent = parentObject
+    return obj
+end
+
+local function corner(object, radius)
+    create("UICorner", { CornerRadius = UDim.new(0, radius) }, object)
+end
+
+local function stroke(object, color, thickness, transparency)
+    return create("UIStroke", {
+        Color = color,
+        Thickness = thickness,
+        Transparency = transparency or 0,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    }, object)
+end
+
+local function tween(object, duration, properties)
+    local animation = TweenService:Create(
+        object,
+        TweenInfo.new(duration, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+        properties
+    )
+    animation:Play()
+    return animation
+end
+
+local background = create("Frame", {
+    Size = UDim2.fromScale(1, 1),
+    BackgroundColor3 = Color3.fromRGB(3, 4, 7),
+    BackgroundTransparency = 0.35,
+    BorderSizePixel = 0
+}, gui)
+
+local glow = create("Frame", {
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Position = UDim2.fromScale(0.5, 0.5),
+    Size = UDim2.fromOffset(450, 360),
+    BackgroundColor3 = Color3.fromRGB(0, 102, 255),
+    BackgroundTransparency = 0.88,
+    BorderSizePixel = 0
+}, background)
+corner(glow, 28)
+
+local main = create("Frame", {
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Position = UDim2.fromScale(0.5, 0.5),
+    Size = UDim2.fromOffset(420, 330),
+    BackgroundColor3 = Color3.fromRGB(7, 9, 14),
+    BackgroundTransparency = 0.02,
+    BorderSizePixel = 0,
+    ClipsDescendants = false
+}, background)
+corner(main, 18)
+stroke(main, Color3.fromRGB(0, 115, 255), 1.5, 0.2)
+
+create("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(15, 20, 32)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(7, 9, 14)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 13, 22))
+    }),
+    Rotation = 55
+}, main)
+
+local topAccent = create("Frame", {
+    Size = UDim2.new(1, 0, 0, 3),
+    BackgroundColor3 = Color3.fromRGB(0, 132, 255),
+    BorderSizePixel = 0
+}, main)
+
+create("UIGradient", {
+    Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 1),
+        NumberSequenceKeypoint.new(0.2, 0),
+        NumberSequenceKeypoint.new(0.8, 0),
+        NumberSequenceKeypoint.new(1, 1)
+    })
+}, topAccent)
+
+local title = create("TextLabel", {
+    Position = UDim2.fromOffset(26, 22),
+    Size = UDim2.new(1, -80, 0, 26),
+    BackgroundTransparency = 1,
+    Text = "enormal",
+    TextColor3 = Color3.fromRGB(255, 255, 255),
+    TextSize = 22,
+    Font = Enum.Font.GothamBlack,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    ZIndex = 2
+}, main)
+
+create("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 160, 255))
+    })
+}, title)
+
+create("TextLabel", {
+    Position = UDim2.fromOffset(26, 50),
+    Size = UDim2.new(1, -52, 0, 16),
+    BackgroundTransparency = 1,
+    Text = "SECURE PROTOCOL  //  LUARMOR CORE",
+    TextColor3 = Color3.fromRGB(110, 125, 155),
+    TextSize = 9,
+    Font = Enum.Font.GothamBold,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    ZIndex = 2
+}, main)
+
+local closeBtn = create("TextButton", {
+    Position = UDim2.new(1, -46, 0, 20),
+    Size = UDim2.fromOffset(26, 26),
+    BackgroundColor3 = Color3.fromRGB(18, 22, 33),
+    Text = "✕",
+    TextColor3 = Color3.fromRGB(170, 190, 220),
+    TextSize = 14,
+    Font = Enum.Font.GothamBold,
+    AutoButtonColor = false,
+    ZIndex = 5
+}, main)
+corner(closeBtn, 8)
+stroke(closeBtn, Color3.fromRGB(35, 45, 70), 1, 0.4)
+
+closeBtn.MouseButton1Click:Connect(function()
+    tween(main, 0.15, { Size = UDim2.fromOffset(380, 290), BackgroundTransparency = 1 })
+    task.wait(0.15)
+    gui:Destroy()
+end)
+
+create("Frame", {
+    Position = UDim2.fromOffset(26, 78),
+    Size = UDim2.new(1, -52, 0, 1),
+    BackgroundColor3 = Color3.fromRGB(30, 40, 65),
+    BorderSizePixel = 0,
+    ZIndex = 2
+}, main)
+
+create("TextLabel", {
+    Position = UDim2.fromOffset(26, 92),
+    Size = UDim2.new(1, -52, 0, 16),
+    BackgroundTransparency = 1,
+    Text = "SYSTEM STATUS",
+    TextColor3 = Color3.fromRGB(180, 195, 220),
+    TextSize = 10,
+    Font = Enum.Font.GothamBold,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    ZIndex = 2
+}, main)
+
+local statusLabel = create("TextLabel", {
+    Position = UDim2.fromOffset(26, 130),
+    Size = UDim2.new(1, -52, 0, 18),
+    BackgroundTransparency = 1,
+    Text = "● System ready - Click launch to start",
+    TextColor3 = Color3.fromRGB(60, 220, 140),
+    TextSize = 10,
+    Font = Enum.Font.GothamMedium,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    ZIndex = 2
+}, main)
+
+local function setStatus(msg, col)
+    statusLabel.Text = "● " .. msg
+    statusLabel.TextColor3 = col
+end
+
+local function makeButton(name, text, pos, size, bgCol)
+    local btn = create("TextButton", {
+        Name = name,
+        Position = pos,
+        Size = size,
+        BackgroundColor3 = bgCol,
+        BackgroundTransparency = 0.04,
+        BorderSizePixel = 0,
+        Text = text,
+        TextColor3 = Color3.fromRGB(240, 245, 255),
+        TextSize = 11,
+        Font = Enum.Font.GothamBold,
+        AutoButtonColor = false,
+        ZIndex = 5
+    }, main)
+    corner(btn, 10)
+    stroke(btn, bgCol:Lerp(Color3.fromRGB(255, 255, 255), 0.2), 1, 0.3)
+
+    btn.MouseEnter:Connect(function()
+        tween(btn, 0.12, { BackgroundColor3 = bgCol:Lerp(Color3.fromRGB(255, 255, 255), 0.12) })
+    end)
+    btn.MouseLeave:Connect(function()
+        tween(btn, 0.12, { BackgroundColor3 = bgCol })
+    end)
+    return btn
+end
+
+local discordBtn = makeButton("Discord", "DISCORD ↗", UDim2.fromOffset(26, 192), UDim2.new(0.5, -30, 0, 38), Color3.fromRGB(24, 30, 45))
+local launchBtn = makeButton("Launch", "LAUNCH HUB →", UDim2.new(0.5, 4, 0, 192), UDim2.new(0.5, -30, 0, 38), Color3.fromRGB(0, 105, 235))
+
+create("TextLabel", {
+    Position = UDim2.new(0, 26, 1, -26),
+    Size = UDim2.new(1, -52, 0, 14),
+    BackgroundTransparency = 1,
+    Text = "enormal  //  SECURE GATEWAY",
+    TextColor3 = Color3.fromRGB(55, 68, 92),
+    TextSize = 9,
+    Font = Enum.Font.GothamBold,
+    TextXAlignment = Enum.TextXAlignment.Center,
+    ZIndex = 2
+}, main)
+
+local function copyLink(url, msg)
+    if setclipboard then
+        setclipboard(url)
+        setStatus(msg, Color3.fromRGB(60, 220, 140))
+    else
+        setStatus("Clipboard access restricted", Color3.fromRGB(255, 90, 100))
+    end
+end
+
+discordBtn.MouseButton1Click:Connect(function() copyLink(DISCORD_URL, "Discord invite copied to clipboard!") end)
+
+local launching = false
+
+launchBtn.MouseButton1Click:Connect(function()
+    if launching then return end
+    launching = true
+    launchBtn.Text = "LOADING..."
+    setStatus("Loading script via Luarmor...", Color3.fromRGB(80, 160, 255))
+
+    task.spawn(function()
+        task.wait(0.3)
+        tween(main, 0.2, { Size = UDim2.fromOffset(360, 280), BackgroundTransparency = 1 })
+        tween(glow, 0.2, { BackgroundTransparency = 1 })
+        task.wait(0.2)
+        gui:Destroy()
+
+        local loaded, err = pcall(function()
+            api.load_script()
+        end)
+
+        if not loaded then
+            warn("Luarmor script execution error:", err)
+        end
+    end)
+end)
+
+local dragging, dragStart, startPos
+title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging, dragStart, startPos = true, input.Position, main.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        glow.Position = main.Position
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+main.Size = UDim2.fromOffset(370, 290)
+main.BackgroundTransparency = 1
+tween(main, 0.35, { Size = UDim2.fromOffset(420, 330), BackgroundTransparency = 0.02 })
+tween(glow, 0.35, { Size = UDim2.fromOffset(450, 360) })
