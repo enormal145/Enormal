@@ -4,36 +4,6 @@ local UserInputService = game:GetService("UserInputService")
 
 local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
-
-local PROJECT_ID = "470e2ed53cba47a2ad78827fe653b54b"
-local KEY_URL = "https://ads.luarmor.net/get_key?for=CentuDox_Key__Lootlabs_-pxqRvzyXWCbf"
-local DISCORD_URL = "https://discord.gg/centu-sherman-1348168772862869514"
-local SAVE_FILE = "CentuDox_KeySystem_Storage.txt"
-
-local function getSavedKey()
-    if readfile and pcall(readfile, SAVE_FILE) then
-        local success, content = pcall(readfile, SAVE_FILE)
-        if success and content and #content > 0 then
-            return content
-        end
-    end
-    return ""
-end
-
-local function saveKey(key)
-    if writefile then
-        pcall(writefile, SAVE_FILE, key)
-    end
-end
-
-local apiSuccess, api = pcall(function()
-    return loadstring(game:HttpGet("https://sdkapi-public.luarmor.net/library.lua"))()
-end)
-
-if not apiSuccess or not api then
-    return
-end
-
 api.script_id = PROJECT_ID
 
 local gui = Instance.new("ScreenGui")
