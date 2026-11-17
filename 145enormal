@@ -1,40 +1,43 @@
--- ==========================================================
--- eNormal Combat Control Panel & Hub (Direct Load)
--- ==========================================================
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local CoreGui = game:GetService("CoreGui")
-local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
-local localPlayer = Players.LocalPlayer
-local PlayerGui = localPlayer:WaitForChild("PlayerGui")
-local camera = Workspace.CurrentCamera
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
 
--- Bảng cấu hình lưu trữ trạng thái các tính năng
-local Config = {
-    PlayerAim = false,
-    PlrTracer = false,
-    NpcAim = false,
-    NpcTracer = false,
-    FastAttack = false,
-    FARange = 100,
-    GunAura = false,
-    GunRange = 2500
-}
+local PROJECT_ID = "470e2ed53cba47a2ad78827fe653b54b"
+local KEY_URL = "https://ads.luarmor.net/get_key?for=CentuDox_Key__Lootlabs_-pxqRvzyXWCbf"
+local DISCORD_URL = "https://discord.gg/centu-sherman-1348168772862869514"
+local SAVE_FILE = "CentuDox_KeySystem_Storage.txt"
 
--- Xóa GUI cũ nếu chạy lại script nhiều lần tránh bị chồng chéo
-local parentGui = pcall(function() return CoreGui.Name end) and CoreGui or PlayerGui
-if parentGui:FindFirstChild("eNormalControlPanel") then
-    parentGui.eNormalControlPanel:Destroy()
+local function getSavedKey()
+    if readfile and pcall(readfile, SAVE_FILE) then
+        local success, content = pcall(readfile, SAVE_FILE)
+        if success and content and #content > 0 then
+            return content
+        end
+    end
+    return ""
 end
 
--- ==========================================================
--- 1. XÂY DỰNG GIAO DIỆN (UI PANEL) eNORMAL CHUẨN ĐẸP
--- ==========================================================
+local function saveKey(key)
+    if writefile then
+        pcall(writefile, SAVE_FILE, key)
+    end
+end
+
+local apiSuccess, api = pcall(function()
+    return loadstring(game:HttpGet("https://sdkapi-public.luarmor.net/library.lua"))()
+end)
+
+if not apiSuccess or not api then
+    return
+end
+
+api.script_id = PROJECT_ID
+
 local gui = Instance.new("ScreenGui")
-gui.Name = "eNormalControlPanel"
+gui.Name = "CentuDoxKeySystem"
 gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -77,320 +80,315 @@ local function tween(object, duration, properties)
     return animation
 end
 
--- Hiệu ứng nền mờ nhẹ và khung sáng (Glow)
 local background = create("Frame", {
     Size = UDim2.fromScale(1, 1),
     BackgroundColor3 = Color3.fromRGB(3, 4, 7),
-    BackgroundTransparency = 0.5,
+    BackgroundTransparency = 0.35,
     BorderSizePixel = 0
 }, gui)
 
 local glow = create("Frame", {
     AnchorPoint = Vector2.new(0.5, 0.5),
     Position = UDim2.fromScale(0.5, 0.5),
-    Size = UDim2.fromOffset(300, 440),
+    Size = UDim2.fromOffset(450, 360),
     BackgroundColor3 = Color3.fromRGB(0, 102, 255),
-    BackgroundTransparency = 0.85,
+    BackgroundTransparency = 0.88,
     BorderSizePixel = 0
 }, background)
-corner(glow, 20)
+corner(glow, 28)
 
-local mainFrame = create("Frame", {
+local main = create("Frame", {
     AnchorPoint = Vector2.new(0.5, 0.5),
     Position = UDim2.fromScale(0.5, 0.5),
-    Size = UDim2.fromOffset(280, 420),
-    BackgroundColor3 = Color3.fromRGB(12, 20, 35),
+    Size = UDim2.fromOffset(420, 330),
+    BackgroundColor3 = Color3.fromRGB(7, 9, 14),
     BackgroundTransparency = 0.02,
     BorderSizePixel = 0,
-    Active = true,
-    Draggable = true,
     ClipsDescendants = false
 }, background)
-corner(mainFrame, 14)
-stroke(mainFrame, Color3.fromRGB(0, 115, 255), 1.5, 0.2)
+corner(main, 18)
+stroke(main, Color3.fromRGB(0, 115, 255), 1.5, 0.2)
 
 create("UIGradient", {
     Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(15, 25, 45)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 12, 22))
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(15, 20, 32)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(7, 9, 14)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 13, 22))
     }),
-    Rotation = 45
-}, mainFrame)
+    Rotation = 55
+}, main)
 
--- Tiêu đề eNormal Hub
-local titleLabel = create("TextLabel", {
-    Size = UDim2.new(1, 0, 0, 45),
-    BackgroundColor3 = Color3.fromRGB(18, 30, 50),
-    TextColor3 = Color3.fromRGB(0, 220, 255),
-    Text = "eNORMAL HUB",
+local topAccent = create("Frame", {
+    Size = UDim2.new(1, 0, 0, 3),
+    BackgroundColor3 = Color3.fromRGB(0, 132, 255),
+    BorderSizePixel = 0
+}, main)
+
+create("UIGradient", {
+    Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 1),
+        NumberSequenceKeypoint.new(0.2, 0),
+        NumberSequenceKeypoint.new(0.8, 0),
+        NumberSequenceKeypoint.new(1, 1)
+    })
+}, topAccent)
+
+local title = create("TextLabel", {
+    Position = UDim2.fromOffset(26, 22),
+    Size = UDim2.new(1, -80, 0, 26),
+    BackgroundTransparency = 1,
+    Text = "CENTUDOX",
+    TextColor3 = Color3.fromRGB(255, 255, 255),
+    TextSize = 22,
+    Font = Enum.Font.GothamBlack,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    ZIndex = 2
+}, main)
+
+create("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 160, 255))
+    })
+}, title)
+
+create("TextLabel", {
+    Position = UDim2.fromOffset(26, 50),
+    Size = UDim2.new(1, -52, 0, 16),
+    BackgroundTransparency = 1,
+    Text = "SECURE PROTOCOL  //  LUARMOR CORE",
+    TextColor3 = Color3.fromRGB(110, 125, 155),
+    TextSize = 9,
     Font = Enum.Font.GothamBold,
-    TextSize = 15,
-    Parent = mainFrame
-} )
-corner(titleLabel, 14)
+    TextXAlignment = Enum.TextXAlignment.Left,
+    ZIndex = 2
+}, main)
 
--- Nút thu nhỏ / đóng bảng (X)
 local closeBtn = create("TextButton", {
-    Position = UDim2.new(1, -38, 0, 10),
+    Position = UDim2.new(1, -46, 0, 20),
     Size = UDim2.fromOffset(26, 26),
-    BackgroundColor3 = Color3.fromRGB(25, 40, 65),
+    BackgroundColor3 = Color3.fromRGB(18, 22, 33),
     Text = "✕",
-    TextColor3 = Color3.fromRGB(200, 220, 255),
-    TextSize = 12,
+    TextColor3 = Color3.fromRGB(170, 190, 220),
+    TextSize = 14,
     Font = Enum.Font.GothamBold,
     AutoButtonColor = false,
     ZIndex = 5
-}, mainFrame)
+}, main)
 corner(closeBtn, 8)
-stroke(closeBtn, Color3.fromRGB(50, 80, 130), 1, 0.3)
+stroke(closeBtn, Color3.fromRGB(35, 45, 70), 1, 0.4)
 
 closeBtn.MouseButton1Click:Connect(function()
-    tween(mainFrame, 0.15, { Size = UDim2.fromOffset(250, 380), BackgroundTransparency = 1 })
-    tween(glow, 0.15, { BackgroundTransparency = 1 })
+    tween(main, 0.15, { Size = UDim2.fromOffset(380, 290), BackgroundTransparency = 1 })
     task.wait(0.15)
     gui:Destroy()
 end)
 
--- Hàm tạo nút Toggle (Bật/Tắt)
-local function createToggle(configKey, labelText, posY)
+create("Frame", {
+    Position = UDim2.fromOffset(26, 78),
+    Size = UDim2.new(1, -52, 0, 1),
+    BackgroundColor3 = Color3.fromRGB(30, 40, 65),
+    BorderSizePixel = 0,
+    ZIndex = 2
+}, main)
+
+create("TextLabel", {
+    Position = UDim2.fromOffset(26, 92),
+    Size = UDim2.new(1, -52, 0, 16),
+    BackgroundTransparency = 1,
+    Text = "AUTHENTICATION KEY",
+    TextColor3 = Color3.fromRGB(180, 195, 220),
+    TextSize = 10,
+    Font = Enum.Font.GothamBold,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    ZIndex = 2
+}, main)
+
+local initialKey = getSavedKey()
+local keyBox = create("TextBox", {
+    Position = UDim2.fromOffset(26, 114),
+    Size = UDim2.new(1, -52, 0, 42),
+    BackgroundColor3 = Color3.fromRGB(4, 6, 10),
+    BackgroundTransparency = 0.3,
+    Text = initialKey,
+    PlaceholderText = "Paste your license key...",
+    PlaceholderColor3 = Color3.fromRGB(65, 75, 95),
+    TextColor3 = Color3.fromRGB(240, 245, 255),
+    TextSize = 12,
+    Font = Enum.Font.GothamMedium,
+    ClearTextOnFocus = false,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    ZIndex = 3
+}, main)
+corner(keyBox, 10)
+stroke(keyBox, Color3.fromRGB(30, 48, 80), 1, 0.25)
+
+create("UIPadding", {
+    PaddingLeft = UDim.new(0, 14),
+    PaddingRight = UDim.new(0, 14)
+}, keyBox)
+
+local statusLabel = create("TextLabel", {
+    Position = UDim2.fromOffset(26, 162),
+    Size = UDim2.new(1, -52, 0, 18),
+    BackgroundTransparency = 1,
+    Text = initialKey ~= "" and "●  Loaded key configuration from cache" or "●  Awaiting system verification",
+    TextColor3 = initialKey ~= "" and Color3.fromRGB(60, 220, 140) or Color3.fromRGB(110, 125, 155),
+    TextSize = 10,
+    Font = Enum.Font.GothamMedium,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    ZIndex = 2
+}, main)
+
+local function setStatus(msg, col)
+    statusLabel.Text = "●  " .. msg
+    statusLabel.TextColor3 = col
+end
+
+local function makeButton(name, text, pos, size, bgCol)
     local btn = create("TextButton", {
-        Size = UDim2.new(0.92, 0, 0, 36),
-        Position = UDim2.new(0.04, 0, 0, posY),
-        BackgroundColor3 = Color3.fromRGB(22, 38, 62),
-        TextColor3 = Color3.fromRGB(240, 240, 240),
-        Text = "  " .. labelText,
-        Font = Enum.Font.GothamSemibold,
-        TextSize = 13,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        AutoButtonColor = false
-    }, mainFrame)
-    corner(btn, 6)
-    stroke(btn, Color3.fromRGB(35, 60, 95), 1, 0.4)
-
-    local statusLabel = create("TextLabel", {
-        Size = UDim2.new(0, 70, 1, 0),
-        Position = UDim2.new(1, -75, 0, 0),
-        BackgroundTransparency = 1,
-        TextColor3 = Color3.fromRGB(150, 150, 150),
-        Text = "OFF",
+        Name = name,
+        Position = pos,
+        Size = size,
+        BackgroundColor3 = bgCol,
+        BackgroundTransparency = 0.04,
+        BorderSizePixel = 0,
+        Text = text,
+        TextColor3 = Color3.fromRGB(240, 245, 255),
+        TextSize = 11,
         Font = Enum.Font.GothamBold,
-        TextSize = 13
-    }, btn)
+        AutoButtonColor = false,
+        ZIndex = 5
+    }, main)
+    corner(btn, 10)
+    stroke(btn, bgCol:Lerp(Color3.fromRGB(255, 255, 255), 0.2), 1, 0.3)
 
-    btn.MouseButton1Click:Connect(function()
-        Config[configKey] = not Config[configKey]
-        if Config[configKey] then
-            statusLabel.Text = "ON"
-            statusLabel.TextColor3 = Color3.fromRGB(0, 255, 128)
-            tween(btn, 0.1, { BackgroundColor3 = Color3.fromRGB(28, 60, 100) })
+    btn.MouseEnter:Connect(function()
+        tween(btn, 0.12, { BackgroundColor3 = bgCol:Lerp(Color3.fromRGB(255, 255, 255), 0.12) })
+    end)
+    btn.MouseLeave:Connect(function()
+        tween(btn, 0.12, { BackgroundColor3 = bgCol })
+    end)
+    return btn
+end
+
+local getKeyBtn = makeButton("GetKey", "GET KEY ↗", UDim2.fromOffset(26, 192), UDim2.new(0.5, -30, 0, 38), Color3.fromRGB(15, 65, 135))
+local discordBtn = makeButton("Discord", "DISCORD ↗", UDim2.new(0.5, 4, 0, 192), UDim2.new(0.5, -30, 0, 38), Color3.fromRGB(24, 30, 45))
+local verifyBtn = makeButton("Verify", "VERIFY ACCESS →", UDim2.fromOffset(26, 238), UDim2.new(1, -52, 0, 40), Color3.fromRGB(0, 105, 235))
+
+create("TextLabel", {
+    Position = UDim2.new(0, 26, 1, -26),
+    Size = UDim2.new(1, -52, 0, 14),
+    BackgroundTransparency = 1,
+    Text = "CENTUDOX  //  ENCRYPTED GATEWAY",
+    TextColor3 = Color3.fromRGB(55, 68, 92),
+    TextSize = 9,
+    Font = Enum.Font.GothamBold,
+    TextXAlignment = Enum.TextXAlignment.Center,
+    ZIndex = 2
+}, main)
+
+local function copyLink(url, msg)
+    if setclipboard then
+        setclipboard(url)
+        setStatus(msg, Color3.fromRGB(60, 220, 140))
+    else
+        setStatus("Clipboard access restricted", Color3.fromRGB(255, 90, 100))
+    end
+end
+
+getKeyBtn.MouseButton1Click:Connect(function() copyLink(KEY_URL, "Key link copied to clipboard!") end)
+discordBtn.MouseButton1Click:Connect(function() copyLink(DISCORD_URL, "Discord invite copied to clipboard!") end)
+
+local verifying = false
+
+verifyBtn.MouseButton1Click:Connect(function()
+    if verifying then return end
+    local enteredKey = keyBox.Text:match("^%s*(.-)%s*$")
+
+    if enteredKey == "" then
+        setStatus("Please input your license key first", Color3.fromRGB(255, 185, 60))
+        return
+    end
+
+    verifying = true
+    verifyBtn.Text = "VERIFYING..."
+    setStatus("Connecting to Luarmor network...", Color3.fromRGB(80, 160, 255))
+
+    task.spawn(function()
+        local checked, statusResult = pcall(function()
+            return api.check_key(enteredKey)
+        end)
+
+        if not checked or type(statusResult) ~= "table" then
+            setStatus("Network error during verification", Color3.fromRGB(255, 90, 100))
+            verifyBtn.Text = "VERIFY ACCESS →"
+            verifying = false
+            return
+        end
+
+        if statusResult.code == "KEY_VALID" then
+            saveKey(enteredKey)
+            script_key = enteredKey
+
+            setStatus("Access Granted! Unloading UI...", Color3.fromRGB(60, 220, 140))
+            verifyBtn.Text = "GRANTED"
+
+            task.wait(0.4)
+            
+            tween(main, 0.2, { Size = UDim2.fromOffset(360, 280), BackgroundTransparency = 1 })
+            tween(glow, 0.2, { BackgroundTransparency = 1 })
+            task.wait(0.2)
+            gui:Destroy()
+
+            local loaded, err = pcall(function()
+                api.load_script()
+            end)
+
+            if not loaded then
+                warn("Luarmor script execution error:", err)
+            end
+
+        elseif statusResult.code == "KEY_HWID_LOCKED" then
+            setStatus("Key is bound to another hardware ID", Color3.fromRGB(255, 185, 60))
+            verifyBtn.Text = "VERIFY ACCESS →"
+            verifying = false
+
+        elseif statusResult.code == "KEY_INCORRECT" then
+            setStatus("Invalid or terminated key", Color3.fromRGB(255, 90, 100))
+            verifyBtn.Text = "VERIFY ACCESS →"
+            verifying = false
+
         else
-            statusLabel.Text = "OFF"
-            statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-            tween(btn, 0.1, { BackgroundColor3 = Color3.fromRGB(22, 38, 62) })
+            setStatus(tostring(statusResult.message or statusResult.code or "Authentication failed"), Color3.fromRGB(255, 90, 100))
+            verifyBtn.Text = "VERIFY ACCESS →"
+            verifying = false
         end
     end)
-end
+end)
 
--- Hàm tạo ô nhập thông số (TextBox cho Range)
-local function createInputBox(configKey, labelText, defaultVal, posY)
-    local label = create("TextLabel", {
-        Size = UDim2.new(0.55, 0, 0, 36),
-        Position = UDim2.new(0.04, 0, 0, posY),
-        BackgroundColor3 = Color3.fromRGB(22, 38, 62),
-        TextColor3 = Color3.fromRGB(240, 240, 240),
-        Text = "  " .. labelText,
-        Font = Enum.Font.GothamSemibold,
-        TextSize = 13,
-        TextXAlignment = Enum.TextXAlignment.Left
-    }, mainFrame)
-    corner(label, 6)
-    stroke(label, Color3.fromRGB(35, 60, 95), 1, 0.4)
-
-    local box = create("TextBox", {
-        Size = UDim2.new(0.35, 0, 0, 36),
-        Position = UDim2.new(0.61, 0, 0, posY),
-        BackgroundColor3 = Color3.fromRGB(15, 25, 42),
-        TextColor3 = Color3.fromRGB(0, 255, 255),
-        Text = tostring(defaultVal),
-        Font = Enum.Font.GothamBold,
-        TextSize = 13,
-        ClearTextOnFocus = false
-    }, mainFrame)
-    corner(box, 6)
-    stroke(box, Color3.fromRGB(35, 60, 95), 1, 0.4)
-
-    box.FocusLost:Connect(function()
-        local val = tonumber(box.Text)
-        if val then
-            Config[configKey] = val
-        else
-            box.Text = tostring(Config[configKey])
-        end
-    end)
-end
-
--- Xây dựng bố cục các chức năng lên bảng
-createToggle("PlayerAim", "Player Aim 👤", 55)
-createToggle("PlrTracer", "Plr Tracer ✏️", 98)
-createToggle("NpcAim", "NPC Aim 👾", 141)
-createToggle("NpcTracer", "NPC Tracer ✏️", 184)
-createToggle("FastAttack", "Fast Attack ⚡", 227)
-createInputBox("FARange", "FA Range:", 100, 270)
-createToggle("GunAura", "Gun Aura 🎯", 313)
-createInputBox("GunRange", "Gun Range:", 2500, 356)
-
-
--- ==========================================================
--- 2. HỆ THỐNG XỬ LÝ LOGIC (SKILL AIM & COMBAT)
--- ==========================================================
-
--- Tìm mục tiêu gần nhất
-local function getClosestTarget(isNpc)
-    local closest = nil
-    local shortestDist = math.huge
-    local myChar = localPlayer.Character
-    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return nil end
-    local myPos = myChar.HumanoidRootPart.Position
-
-    if isNpc then
-        for _, obj in ipairs(Workspace:GetChildren()) do
-            if obj:FindFirstChild("Humanoid") and obj:FindFirstChild("HumanoidRootPart") then
-                if not Players:GetPlayerFromCharacter(obj) and obj ~= myChar then
-                    local hum = obj:FindFirstChild("Humanoid")
-                    if hum and hum.Health > 0 then
-                        local dist = (obj.HumanoidRootPart.Position - myPos).Magnitude
-                        if dist < shortestDist then
-                            shortestDist = dist
-                            closest = obj
-                        end
-                    end
-                end
-            end
-        end
-    else
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= localPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-                local hum = plr.Character:FindFirstChild("Humanoid")
-                if hum and hum.Health > 0 then
-                    local dist = (plr.Character.HumanoidRootPart.Position - myPos).Magnitude
-                    if dist < shortestDist then
-                        shortestDist = dist
-                        closest = plr.Character
-                    end
-                end
-            end
-        end
-    end
-    return closest
-end
-
--- TÍNH NĂNG SKILL AIM: Camera tự do, tự xoay hướng nhân vật vào mục tiêu khi dùng skill
-local function setupSkillAim(tool)
-    if not tool:IsA("Tool") then return end
-    
-    tool.Activated:Connect(function()
-        local myChar = localPlayer.Character
-        if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return end
-        local hrp = myChar.HumanoidRootPart
-        
-        if Config.PlayerAim then
-            local target = getClosestTarget(false)
-            if target and target:FindFirstChild("HumanoidRootPart") then
-                local tPos = target.HumanoidRootPart.Position
-                hrp.CFrame = CFrame.new(hrp.Position, Vector3.new(tPos.X, hrp.Position.Y, tPos.Z))
-            end
-        end
-        
-        if Config.NpcAim then
-            local target = getClosestTarget(true)
-            if target and target:FindFirstChild("HumanoidRootPart") then
-                local tPos = target.HumanoidRootPart.Position
-                hrp.CFrame = CFrame.new(hrp.Position, Vector3.new(tPos.X, hrp.Position.Y, tPos.Z))
-            end
-        end
-    end)
-end
-
-local function onCharacterAdded(char)
-    char.ChildAdded:Connect(setupSkillAim)
-    for _, child in ipairs(char:GetChildren()) do
-        setupSkillAim(child)
-    end
-end
-
-if localPlayer.Character then
-    onCharacterAdded(localPlayer.Character)
-end
-localPlayer.CharacterAdded:Connect(onCharacterAdded)
-
--- Vòng lặp RenderStepped quản lý hiển thị Tracer
-RunService.RenderStepped:Connect(function()
-    local myChar = localPlayer.Character
-    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return end
-
-    -- Plr Tracer
-    if Config.PlrTracer then
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= localPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
-                local head = plr.Character.Head
-                if not head:FindFirstChild("PlrTracerGui") then
-                    local bb = Instance.new("BillboardGui")
-                    bb.Name = "PlrTracerGui"
-                    bb.Size = UDim2.new(0, 40, 0, 40)
-                    bb.Adornee = head
-                    bb.AlwaysOnTop = true
-                    
-                    local dot = Instance.new("Frame")
-                    dot.Size = UDim2.new(1, 0, 1, 0)
-                    dot.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
-                    dot.BorderSizePixel = 0
-                    corner(dot, 20)
-                    dot.Parent = bb
-                    bb.Parent = head
-                end
-            end
-        end
-    else
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr.Character and plr.Character:FindFirstChild("Head") and plr.Character.Head:FindFirstChild("PlrTracerGui") then
-                plr.Character.Head.PlrTracerGui:Destroy()
-            end
-        end
-    end
-
-    -- NPC Tracer
-    if Config.NpcTracer then
-        for _, obj in ipairs(Workspace:GetChildren()) do
-            if obj:FindFirstChild("Humanoid") and obj:FindFirstChild("Head") and not Players:GetPlayerFromCharacter(obj) then
-                local head = obj.Head
-                if not head:FindFirstChild("NpcTracerGui") then
-                    local bb = Instance.new("BillboardGui")
-                    bb.Name = "NpcTracerGui"
-                    bb.Size = UDim2.new(0, 40, 0, 40)
-                    bb.Adornee = head
-                    bb.AlwaysOnTop = true
-                    
-                    local dot = Instance.new("Frame")
-                    dot.Size = UDim2.new(1, 0, 1, 0)
-                    dot.BackgroundColor3 = Color3.fromRGB(255, 120, 0)
-                    dot.BorderSizePixel = 0
-                    corner(dot, 20)
-                    dot.Parent = bb
-                    bb.Parent = head
-                end
-            end
-        end
-    else
-        for _, obj in ipairs(Workspace:GetChildren()) do
-            if obj:FindFirstChild("Head") and obj.Head:FindFirstChild("NpcTracerGui") then
-                obj.Head.NpcTracerGui:Destroy()
-            end
-        end
+local dragging, dragStart, startPos
+title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging, dragStart, startPos = true, input.Position, main.Position
     end
 end)
 
--- Hiệu ứng xuất hiện mượt mà
-mainFrame.Size = UDim2.fromOffset(240, 380)
-mainFrame.BackgroundTransparency = 1
-tween(mainFrame, 0.3, { Size = UDim2.fromOffset(280, 420), BackgroundTransparency = 0.02 })
-tween(glow, 0.3, { Size = UDim2.fromOffset(300, 440) })
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        glow.Position = main.Position
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+main.Size = UDim2.fromOffset(370, 290)
+main.BackgroundTransparency = 1
+tween(main, 0.35, { Size = UDim2.fromOffset(420, 330), BackgroundTransparency = 0.02 })
+tween(glow, 0.35, { Size = UDim2.fromOffset(450, 360) })
