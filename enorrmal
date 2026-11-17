@@ -1,412 +1,231 @@
 -- ==========================================================
--- eNormal Key System & Loader (Luarmor Core)
+-- eNormal Combat Control Panel & Hub (Direct Load)
 -- ==========================================================
 local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
 
-local Player = Players.LocalPlayer
-local PlayerGui = Player:WaitForChild("PlayerGui")
+local localPlayer = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
 
-local PROJECT_ID = "470e2ed53cba47a2ad78827fe653b54b"
-local KEY_URL = "https://ads.luarmor.net/get_key?for=CentuDox_Key__Lootlabs_-pxqRvzyXWCbf"
-local DISCORD_URL = "https://discord.gg/centu-sherman-1348168772862869514"
-local MAIN_SCRIPT_URL = "https://raw.githubusercontent.com/enormal145/Enormal/refs/heads/main/aimass"
-local SAVE_FILE = "eNormal_KeySystem_Storage.txt"
+-- Bảng lưu trữ cấu hình trạng thái và thông số
+local Config = {
+    PlayerAim = false,
+    PlrTracer = false,
+    NpcAim = false,
+    NpcTracer = false,
+    FastAttack = false,
+    FARange = 100,
+    GunAura = false,
+    GunRange = 2500
+}
 
--- Kiểm tra và lấy key đã lưu trong thư mục của executor
-local function getSavedKey()
-    if readfile and pcall(readfile, SAVE_FILE) then
-        local success, content = pcall(readfile, SAVE_FILE)
-        if success and content and #content > 0 then
-            return content
-        end
-    end
-    return ""
+-- Xóa GUI cũ nếu chạy lại script nhiều lần để tránh trùng lặp
+local parentGui = pcall(function() return CoreGui.Name end) and CoreGui or localPlayer:WaitForChild("PlayerGui")
+if parentGui:FindFirstChild("eNormalControlPanel") then
+    parentGui.eNormalControlPanel:Destroy()
 end
 
-local function saveKey(key)
-    if writefile then
-        pcall(writefile, SAVE_FILE, key)
-    end
-end
+-- ==========================================================
+-- 1. XÂY DỰNG GIAO DIỆN (UI PANEL) TÊN eNORMAL
+-- ==========================================================
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "eNormalControlPanel"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = parentGui
 
--- Kết nối Luarmor API
-local apiSuccess, api = pcall(function()
-    return loadstring(game:HttpGet("https://sdkapi-public.luarmor.net/library.lua"))()
-end)
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 280, 0, 420)
+mainFrame.Position = UDim2.new(0.05, 0, 0.15, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(12, 20, 35) -- Xanh đen công nghệ
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true -- Cho phép kéo thả bảng
+mainFrame.Parent = screenGui
 
-if not apiSuccess or not api then
-    warn("eNormal: Không thể kết nối tới Luarmor API!")
-    return
-end
-
-api.script_id = PROJECT_ID
-
--- Xây dựng giao diện ScreenGui
-local gui = Instance.new("ScreenGui")
-gui.Name = "eNormalKeySystem"
-gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = true
-gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-local parent = PlayerGui
-pcall(function()
-    if gethui then parent = gethui() end
-end)
-gui.Parent = parent
-
-local function create(class, props, parentObject)
-    local obj = Instance.new(class)
-    for property, value in pairs(props) do
-        obj[property] = value
-    end
-    obj.Parent = parentObject
-    return obj
-end
-
-local function corner(object, radius)
-    create("UICorner", { CornerRadius = UDim.new(0, radius) }, object)
-end
-
-local function stroke(object, color, thickness, transparency)
-    return create("UIStroke", {
-        Color = color,
-        Thickness = thickness,
-        Transparency = transparency or 0,
-        ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    }, object)
-end
-
-local function tween(object, duration, properties)
-    local animation = TweenService:Create(
-        object,
-        TweenInfo.new(duration, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
-        properties
-    )
-    animation:Play()
-    return animation
-end
-
--- Background & Hiệu ứng sáng (Glow)
-local background = create("Frame", {
-    Size = UDim2.fromScale(1, 1),
-    BackgroundColor3 = Color3.fromRGB(3, 4, 7),
-    BackgroundTransparency = 0.35,
-    BorderSizePixel = 0
-}, gui)
-
-local glow = create("Frame", {
-    AnchorPoint = Vector2.new(0.5, 0.5),
-    Position = UDim2.fromScale(0.5, 0.5),
-    Size = UDim2.fromOffset(450, 360),
-    BackgroundColor3 = Color3.fromRGB(0, 102, 255),
-    BackgroundTransparency = 0.88,
-    BorderSizePixel = 0
-}, background)
-corner(glow, 28)
-
--- Khung chính eNormal Panel
-local main = create("Frame", {
-    AnchorPoint = Vector2.new(0.5, 0.5),
-    Position = UDim2.fromScale(0.5, 0.5),
-    Size = UDim2.fromOffset(420, 330),
-    BackgroundColor3 = Color3.fromRGB(7, 9, 14),
-    BackgroundTransparency = 0.02,
-    BorderSizePixel = 0,
-    ClipsDescendants = false
-}, background)
-corner(main, 18)
-stroke(main, Color3.fromRGB(0, 115, 255), 1.5, 0.2)
-
-create("UIGradient", {
-    Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(15, 20, 32)),
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(7, 9, 14)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 13, 22))
-    }),
-    Rotation = 55
-}, main)
-
-local topAccent = create("Frame", {
-    Size = UDim2.new(1, 0, 0, 3),
-    BackgroundColor3 = Color3.fromRGB(0, 132, 255),
-    BorderSizePixel = 0
-}, main)
-
-create("UIGradient", {
-    Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 1),
-        NumberSequenceKeypoint.new(0.2, 0),
-        NumberSequenceKeypoint.new(0.8, 0),
-        NumberSequenceKeypoint.new(1, 1)
-    })
-}, topAccent)
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 10)
+mainCorner.Parent = mainFrame
 
 -- Tiêu đề eNormal
-local title = create("TextLabel", {
-    Position = UDim2.fromOffset(26, 22),
-    Size = UDim2.new(1, -80, 0, 26),
-    BackgroundTransparency = 1,
-    Text = "eNORMAL",
-    TextColor3 = Color3.fromRGB(255, 255, 255),
-    TextSize = 22,
-    Font = Enum.Font.GothamBlack,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    ZIndex = 2
-}, main)
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, 0, 0, 45)
+titleLabel.BackgroundColor3 = Color3.fromRGB(18, 30, 50)
+titleLabel.TextColor3 = Color3.fromRGB(0, 220, 255)
+titleLabel.Text = "eNORMAL HUB"
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 16
+titleLabel.Parent = mainFrame
 
-create("UIGradient", {
-    Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 160, 255))
-    })
-}, title)
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 10)
+titleCorner.Parent = titleLabel
 
-create("TextLabel", {
-    Position = UDim2.fromOffset(26, 50),
-    Size = UDim2.new(1, -52, 0, 16),
-    BackgroundTransparency = 1,
-    Text = "SECURE SCRIPT HUB  //  LUARMOR CORE",
-    TextColor3 = Color3.fromRGB(110, 125, 155),
-    TextSize = 9,
-    Font = Enum.Font.GothamBold,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    ZIndex = 2
-}, main)
+-- Hàm tạo nút Toggle (Bật/Tắt)
+local function createToggle(configKey, labelText, posY)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.92, 0, 0, 38)
+    btn.Position = UDim2.new(0.04, 0, 0, posY)
+    btn.BackgroundColor3 = Color3.fromRGB(22, 38, 62)
+    btn.TextColor3 = Color3.fromRGB(240, 240, 240)
+    btn.Text = "  " .. labelText
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize, btn.TextXAlignment = 13, Enum.TextXAlignment.Left
+    btn.Parent = mainFrame
+    
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
--- Nút đóng (X)
-local closeBtn = create("TextButton", {
-    Position = UDim2.new(1, -46, 0, 20),
-    Size = UDim2.fromOffset(26, 26),
-    BackgroundColor3 = Color3.fromRGB(18, 22, 33),
-    Text = "✕",
-    TextColor3 = Color3.fromRGB(170, 190, 220),
-    TextSize = 14,
-    Font = Enum.Font.GothamBold,
-    AutoButtonColor = false,
-    ZIndex = 5
-}, main)
-corner(closeBtn, 8)
-stroke(closeBtn, Color3.fromRGB(35, 45, 70), 1, 0.4)
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(0, 70, 1, 0)
+    statusLabel.Position = UDim2.new(1, -75, 0, 0)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    statusLabel.Text = "OFF"
+    statusLabel.Font = Enum.Font.GothamBold
+    statusLabel.TextSize = 13
+    statusLabel.Parent = btn
 
-closeBtn.MouseButton1Click:Connect(function()
-    tween(main, 0.15, { Size = UDim2.fromOffset(380, 290), BackgroundTransparency = 1 })
-    task.wait(0.15)
-    gui:Destroy()
-end)
-
-create("Frame", {
-    Position = UDim2.fromOffset(26, 78),
-    Size = UDim2.new(1, -52, 0, 1),
-    BackgroundColor3 = Color3.fromRGB(30, 40, 65),
-    BorderSizePixel = 0,
-    ZIndex = 2
-}, main)
-
-create("TextLabel", {
-    Position = UDim2.fromOffset(26, 92),
-    Size = UDim2.new(1, -52, 0, 16),
-    BackgroundTransparency = 1,
-    Text = "AUTHENTICATION KEY",
-    TextColor3 = Color3.fromRGB(180, 195, 220),
-    TextSize = 10,
-    Font = Enum.Font.GothamBold,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    ZIndex = 2
-}, main)
-
--- Khung nhập Key
-local initialKey = getSavedKey()
-local keyBox = create("TextBox", {
-    Position = UDim2.fromOffset(26, 114),
-    Size = UDim2.new(1, -52, 0, 42),
-    BackgroundColor3 = Color3.fromRGB(4, 6, 10),
-    BackgroundTransparency = 0.3,
-    Text = initialKey,
-    PlaceholderText = "Paste your eNormal license key...",
-    PlaceholderColor3 = Color3.fromRGB(65, 75, 95),
-    TextColor3 = Color3.fromRGB(240, 245, 255),
-    TextSize = 12,
-    Font = Enum.Font.GothamMedium,
-    ClearTextOnFocus = false,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    ZIndex = 3
-}, main)
-corner(keyBox, 10)
-stroke(keyBox, Color3.fromRGB(30, 48, 80), 1, 0.25)
-
-create("UIPadding", {
-    PaddingLeft = UDim.new(0, 14),
-    PaddingRight = UDim.new(0, 14)
-}, keyBox)
-
-local statusLabel = create("TextLabel", {
-    Position = UDim2.fromOffset(26, 162),
-    Size = UDim2.new(1, -52, 0, 18),
-    BackgroundTransparency = 1,
-    Text = initialKey ~= "" and "● Loaded key configuration from cache" or "● Awaiting system verification",
-    TextColor3 = initialKey ~= "" and Color3.fromRGB(60, 220, 140) or Color3.fromRGB(110, 125, 155),
-    TextSize = 10,
-    Font = Enum.Font.GothamMedium,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    ZIndex = 2
-}, main)
-
-local function setStatus(msg, col)
-    statusLabel.Text = "● " .. msg
-    statusLabel.TextColor3 = col
-end
-
-local function makeButton(name, text, pos, size, bgCol)
-    local btn = create("TextButton", {
-        Name = name,
-        Position = pos,
-        Size = size,
-        BackgroundColor3 = bgCol,
-        BackgroundTransparency = 0.04,
-        BorderSizePixel = 0,
-        Text = text,
-        TextColor3 = Color3.fromRGB(240, 245, 255),
-        TextSize = 11,
-        Font = Enum.Font.GothamBold,
-        AutoButtonColor = false,
-        ZIndex = 5
-    }, main)
-    corner(btn, 10)
-    stroke(btn, bgCol:Lerp(Color3.fromRGB(255, 255, 255), 0.2), 1, 0.3)
-
-    btn.MouseEnter:Connect(function()
-        tween(btn, 0.12, { BackgroundColor3 = bgCol:Lerp(Color3.fromRGB(255, 255, 255), 0.12) })
-    end)
-    btn.MouseLeave:Connect(function()
-        tween(btn, 0.12, { BackgroundColor3 = bgCol })
-    end)
-    return btn
-end
-
--- Các nút chức năng giao diện
-local getKeyBtn = makeButton("GetKey", "GET KEY ↗", UDim2.fromOffset(26, 192), UDim2.new(0.5, -30, 0, 38), Color3.fromRGB(15, 65, 135))
-local discordBtn = makeButton("Discord", "DISCORD ↗", UDim2.new(0.5, 4, 0, 192), UDim2.new(0.5, -30, 0, 38), Color3.fromRGB(24, 30, 45))
-local verifyBtn = makeButton("Verify", "VERIFY ACCESS →", UDim2.fromOffset(26, 238), UDim2.new(1, -52, 0, 40), Color3.fromRGB(0, 105, 235))
-
-create("TextLabel", {
-    Position = UDim2.new(0, 26, 1, -26),
-    Size = UDim2.new(1, -52, 0, 14),
-    BackgroundTransparency = 1,
-    Text = "eNORMAL HUB  //  ENCRYPTED GATEWAY",
-    TextColor3 = Color3.fromRGB(55, 68, 92),
-    TextSize = 9,
-    Font = Enum.Font.GothamBold,
-    TextXAlignment = Enum.TextXAlignment.Center,
-    ZIndex = 2
-}, main)
-
-local function copyLink(url, msg)
-    if setclipboard then
-        setclipboard(url)
-        setStatus(msg, Color3.fromRGB(60, 220, 140))
-    else
-        setStatus("Clipboard access restricted", Color3.fromRGB(255, 90, 100))
-    end
-end
-
-getKeyBtn.MouseButton1Click:Connect(function() copyLink(KEY_URL, "Key link copied to clipboard!") end)
-discordBtn.MouseButton1Click:Connect(function() copyLink(DISCORD_URL, "Discord invite copied to clipboard!") end)
-
-local verifying = false
-
--- Xử lý xác thực Key
-verifyBtn.MouseButton1Click:Connect(function()
-    if verifying then return end
-    local enteredKey = keyBox.Text:match("^%s*(.-)%s*$")
-
-    if enteredKey == "" then
-        setStatus("Please input your license key first", Color3.fromRGB(255, 185, 60))
-        return
-    end
-
-    verifying = true
-    verifyBtn.Text = "VERIFYING..."
-    setStatus("Connecting to Luarmor network...", Color3.fromRGB(80, 160, 255))
-
-    task.spawn(function()
-        local checked, statusResult = pcall(function()
-            return api.check_key(enteredKey)
-        end)
-
-        if not checked or type(statusResult) ~= "table" then
-            setStatus("Network error during verification", Color3.fromRGB(255, 90, 100))
-            verifyBtn.Text = "VERIFY ACCESS →"
-            verifying = false
-            return
-        end
-
-        if statusResult.code == "KEY_VALID" then
-            saveKey(enteredKey)
-            script_key = enteredKey
-
-            setStatus("Access Granted! Loading eNormal script...", Color3.fromRGB(60, 220, 140))
-            verifyBtn.Text = "GRANTED"
-
-            task.wait(0.4)
-            
-            tween(main, 0.2, { Size = UDim2.fromOffset(360, 280), BackgroundTransparency = 1 })
-            tween(glow, 0.2, { BackgroundTransparency = 1 })
-            task.wait(0.2)
-            gui:Destroy()
-
-            -- TỰ ĐỘNG LOAD SCRIPT CHÍNH (aimass) SAU KHI VƯỢT KEY THÀNH CÔNG
-            local loaded, err = pcall(function()
-                loadstring(game:HttpGet(MAIN_SCRIPT_URL, true))()
-            end)
-
-            if not loaded then
-                warn("eNormal: Lỗi thực thi script aimass ->", err)
-            end
-
-        elseif statusResult.code == "KEY_HWID_LOCKED" then
-            setStatus("Key is bound to another hardware ID", Color3.fromRGB(255, 185, 60))
-            verifyBtn.Text = "VERIFY ACCESS →"
-            verifying = false
-
-        elseif statusResult.code == "KEY_INCORRECT" then
-            setStatus("Invalid or terminated key", Color3.fromRGB(255, 90, 100))
-            verifyBtn.Text = "VERIFY ACCESS →"
-            verifying = false
-
+    btn.MouseButton1Click:Connect(function()
+        Config[configKey] = not Config[configKey]
+        if Config[configKey] then
+            statusLabel.Text = "ON"
+            statusLabel.TextColor3 = Color3.fromRGB(0, 255, 128) -- Sáng xanh lá khi bật
+            btn.BackgroundColor3 = Color3.fromRGB(28, 55, 90)
         else
-            setStatus(tostring(statusResult.message or statusResult.code or "Authentication failed"), Color3.fromRGB(255, 90, 100))
-            verifyBtn.Text = "VERIFY ACCESS →"
-            verifying = false
+            statusLabel.Text = "OFF"
+            statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+            btn.BackgroundColor3 = Color3.fromRGB(22, 38, 62)
         end
     end)
-end)
+end
 
--- Tính năng kéo thả bảng điều khiển (Draggable)
-local dragging, dragStart, startPos
-title.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging, dragStart, startPos = true, input.Position, main.Position
+-- Hàm tạo ô nhập thông số (TextBox cho Range)
+local function createInputBox(configKey, labelText, defaultVal, posY)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.55, 0, 0, 38)
+    label.Position = UDim2.new(0.04, 0, 0, posY)
+    label.BackgroundColor3 = Color3.fromRGB(22, 38, 62)
+    label.TextColor3 = Color3.fromRGB(240, 240, 240)
+    label.Text = "  " .. labelText
+    label.Font = Enum.Font.GothamSemibold
+    label.TextSize, label.TextXAlignment = 13, Enum.TextXAlignment.Left
+    label.Parent = mainFrame
+    Instance.new("UICorner", label).CornerRadius = UDim.new(0, 6)
+
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(0.35, 0, 0, 38)
+    box.Position = UDim2.new(0.61, 0, 0, posY)
+    box.BackgroundColor3 = Color3.fromRGB(15, 25, 42)
+    box.TextColor3 = Color3.fromRGB(0, 255, 255)
+    box.Text = tostring(defaultVal)
+    box.Font = Enum.Font.GothamBold
+    box.TextSize = 14
+    box.Parent = mainFrame
+    Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
+
+    box.FocusLost:Connect(function()
+        local val = tonumber(box.Text)
+        if val then
+            Config[configKey] = val
+        else
+            box.Text = tostring(Config[configKey])
+        end
+    end)
+end
+
+-- Xây dựng giao diện các nút chức năng theo đúng mẫu yêu cầu
+createToggle("PlayerAim", "Player Aim 👤", 55)
+createToggle("PlrTracer", "Plr Tracer ✏️", 98)
+createToggle("NpcAim", "NPC Aim 👾", 141)
+createToggle("NpcTracer", "NPC Tracer ✏️", 184)
+createToggle("FastAttack", "Fast Attack ⚡", 227)
+createInputBox("FARange", "FA Range:", 100, 270)
+createToggle("GunAura", "Gun Aura 🎯", 313)
+createInputBox("GunRange", "Gun Range:", 2500, 356)
+
+
+-- ==========================================================
+-- 2. HỆ THỐNG XỬ LÝ LOGIC (SKILL AIM & COMBAT)
+-- ==========================================================
+
+-- Hàm tìm mục tiêu gần nhất (Player hoặc NPC)
+local function getClosestTarget(isNpc)
+    local closest = nil
+    local shortestDist = math.huge
+    local myChar = localPlayer.Character
+    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return nil end
+    local myPos = myChar.HumanoidRootPart.Position
+
+    if isNpc then
+        for _, obj in ipairs(Workspace:GetChildren()) do
+            if obj:FindFirstChild("Humanoid") and obj:FindFirstChild("HumanoidRootPart") then
+                if not Players:GetPlayerFromCharacter(obj) and obj ~= myChar then
+                    local hum = obj:FindFirstChild("Humanoid")
+                    if hum and hum.Health > 0 then
+                        local dist = (obj.HumanoidRootPart.Position - myPos).Magnitude
+                        if dist < shortestDist then
+                            shortestDist = dist
+                            closest = obj
+                        end
+                    end
+                end
+            end
+        end
+    else
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= localPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                local hum = plr.Character:FindFirstChild("Humanoid")
+                if hum and hum.Health > 0 then
+                    local dist = (plr.Character.HumanoidRootPart.Position - myPos).Magnitude
+                    if dist < shortestDist then
+                        shortestDist = dist
+                        closest = plr.Character
+                    end
+                end
+            end
+        end
     end
-end)
+    return closest
+end
 
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - dragStart
-        main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        glow.Position = main.Position
+-- TÍNH NĂNG SKILL AIM: Cho phép xoay camera tự do, nhưng khi dùng kỹ năng/đánh, nhân vật tự xoay hướng định vị vào mục tiêu
+local function setupSkillAim(tool)
+    if not tool:IsA("Tool") then return end
+    
+    tool.Activated:Connect(function()
+        local myChar = localPlayer.Character
+        if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return end
+        local hrp = myChar.HumanoidRootPart
+        
+        if Config.PlayerAim then
+            local target = getClosestTarget(false)
+            if target and target:FindFirstChild("HumanoidRootPart") then
+                local tPos = target.HumanoidRootPart.Position
+                hrp.CFrame = CFrame.new(hrp.Position, Vector3.new(tPos.X, hrp.Position.Y, tPos.Z))
+            end
+        end
+        
+        if Config.NpcAim then
+            local target = getClosestTarget(true)
+            if target and target:FindFirstChild("HumanoidRootPart") then
+                local tPos = target.HumanoidRootPart.Position
+                hrp.CFrame = CFrame.new(hrp.Position, Vector3.new(tPos.X, hrp.Position.Y, tPos.Z))
+            end
+        end
+    end)
+end
+
+local function onCharacterAdded(char)
+    char.ChildAdded:Connect(setupSkillAim)
+    for _, child in ipairs(char:GetChildren()) do
+        setupSkillAim(child)
     end
-end)
+end
 
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-    end
-end)
+if localPlayer.Character then
+    onCharacterAdded(localPlayer.Character)
+end
+localPlayer.CharacterAdded:Connect(onCharacterAdded)
 
--- Hiệu ứng mở đầu xuất hiện mượt mà
-main.Size = UDim2.fromOffset(370, 290)
-main.BackgroundTransparency = 1
-tween(main, 0.35, { Size = UDim2.fromOffset(420, 330), BackgroundTransparency = 0.02 })
-tween(glow, 0.35, { Size = UDim2.fromOffset(450, 360) })
+--
