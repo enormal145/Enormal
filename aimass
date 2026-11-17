@@ -1,0 +1,223 @@
+-- LocalScript: Bảng điều khiển (Control Panel) cho Client
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local localPlayer = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- Biến lưu trạng thái cấu hình
+local speedEnabled = false
+local customSpeed = 32
+local camlockEnabled = false
+local espEnabled = false
+
+local targetPlayer = nil
+local espObjects = {}
+
+-- ==========================================
+-- 1. TẠO GIAO DIỆN BẢNG THÔNG SỐ (UI PANEL)
+-- ==========================================
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CheatControlPanel"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+
+-- Khung chính của bảng
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 220, 0, 270)
+mainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true -- Cho phép kéo thả bảng trên màn hình
+mainFrame.Parent = screenGui
+
+-- Tiêu đề bảng
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, 0, 0, 35)
+titleLabel.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.Text = "Control Panel (Drag Me)"
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.TextSize = 15
+titleLabel.Parent = mainFrame
+
+-- Hàm tiện ích tạo nút bấm chuyển đổi (Toggle Button)
+local function createToggleButton(name, posY, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.9, 0, 0, 35)
+    btn.Position = UDim2.new(0.05, 0, 0, posY)
+    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Text = name .. ": OFF"
+    btn.Font = Enum.Font.SourceSansSemibold
+    btn.TextSize = 14
+    btn.Parent = mainFrame
+    
+    local state = false
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        if state then
+            btn.BackgroundColor3 = Color3.fromRGB(40, 160, 80) -- Màu xanh khi bật
+            btn.Text = name .. ": ON"
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60) -- Màu xám khi tắt
+            btn.Text = name .. ": OFF"
+        end
+        callback(state)
+    end)
+    return btn
+end
+
+-- 1. Nút bật/tắt Tăng tốc độ
+createToggleButton("Speed Boost", 45, function(state)
+    speedEnabled = state
+    local char = localPlayer.Character
+    if char and char:FindFirstChild("Humanoid") then
+        char.Humanoid.WalkSpeed = speedEnabled and customSpeed or 16
+    end
+end)
+
+-- 2. Nút bật/tắt Camlock
+createToggleButton("Camlock", 90, function(state)
+    camlockEnabled = state
+    if not camlockEnabled then
+        targetPlayer = nil
+    end
+end)
+
+-- 3. Nút bật/tắt ESP
+createToggleButton("ESP Players", 135, function(state)
+    espEnabled = state
+    if not espEnabled then
+        -- Dọn dẹp ESP khi tắt
+        for _, esp in pairs(espObjects) do
+            if esp then esp:Destroy() end
+        end
+        espObjects = {}
+    end
+end)
+
+-- Ô nhập liệu tùy chỉnh tốc độ chạy
+local speedBox = Instance.new("TextBox")
+speedBox.Size = UDim2.new(0.9, 0, 0, 35)
+speedBox.Position = UDim2.new(0.05, 0, 0, 180)
+speedBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+speedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedBox.PlaceholderText = "Tốc độ (Mặc định: 32)"
+speedBox.Text = "32"
+speedBox.Font = Enum.Font.SourceSans
+speedBox.TextSize = 14
+speedBox.Parent = mainFrame
+
+speedBox.FocusLost:Connect(function(enterPressed)
+    local val = tonumber(speedBox.Text)
+    if val then
+        customSpeed = val
+        if speedEnabled and localPlayer.Character and localPlayer.Character:FindFirstChild("Humanoid") then
+            localPlayer.Character.Humanoid.WalkSpeed = customSpeed
+        end
+    end
+end)
+
+-- Nút thu nhỏ/ẩn hiện bảng (Ẩn nhanh bằng phím RightShift hoặc nút bấm)
+local toggleGuiBtn = Instance.new("TextButton")
+toggleGuiBtn.Size = UDim2.new(0.9, 0, 0, 30)
+toggleGuiBtn.Position = UDim2.new(0.05, 0, 0, 225)
+toggleGuiBtn.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
+toggleGuiBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleGuiBtn.Text = "Ẩn/Hiện Bảng (Insert)"
+toggleGuiBtn.Font = Enum.Font.SourceSansBold
+toggleGuiBtn.TextSize = 13
+toggleGuiBtn.Parent = mainFrame
+
+local visibleState = true
+toggleGuiBtn.MouseButton1Click:Connect(function()
+    visibleState = not visibleState
+    for _, child in ipairs(mainFrame:GetChildren()) do
+        if child ~= titleLabel and child ~= toggleGuiBtn then
+            child.Visible = visibleState
+        end
+    end
+    mainFrame.Size = visibleState and UDim2.new(0, 220, 0, 270) or UDim2.new(0, 220, 0, 35)
+end)
+
+
+-- ==========================================
+-- 2. LOGIC XỬ LÝ TÍNH NĂNG (RUNTIME)
+-- ==========================================
+
+-- Đồng bộ tốc độ khi nhân vật chết và hồi sinh (Respawn)
+local function onCharacterAdded(char)
+    local humanoid = char:WaitForChild("Humanoid")
+    if speedEnabled then
+        humanoid.WalkSpeed = customSpeed
+    end
+end
+localPlayer.CharacterAdded:Connect(onCharacterAdded)
+if localPlayer.Character then
+    onCharacterAdded(localPlayer.Character)
+end
+
+-- Tìm mục tiêu gần nhất cho Camlock
+local function getClosestPlayer()
+    local closest = nil
+    local shortestDistance = math.huge
+    local char = localPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return nil end
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= localPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = player.Character.HumanoidRootPart
+            local distance = (hrp.Position - char.HumanoidRootPart.Position).Magnitude
+            if distance < shortestDistance then
+                shortestDistance = distance
+                closest = player.Character
+            end
+        end
+    end
+    return closest
+end
+
+-- Vòng lặp cập nhật liên tục cho Camlock và ESP
+RunService.RenderStepped:Connect(function()
+    -- Xử lý Camlock
+    if camlockEnabled then
+        if not targetPlayer or not targetPlayer:FindFirstChild("Head") then
+            targetPlayer = getClosestPlayer()
+        end
+        if targetPlayer and targetPlayer:FindFirstChild("Head") then
+            camera.CFrame = CFrame.new(camera.CFrame.Position, targetPlayer.Head.Position)
+        end
+    end
+
+    -- Xử lý ESP (Hiển thị tên đối thủ qua đầu)
+    if espEnabled then
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= localPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
+                local head = plr.Character.Head
+                if not head:FindFirstChild("CustomESP") then
+                    local billboard = Instance.new("BillboardGui")
+                    billboard.Name = "CustomESP"
+                    billboard.Adornee = head
+                    billboard.Size = UDim2.new(0, 100, 0, 40)
+                    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+                    billboard.AlwaysOnTop = true
+                    
+                    local txt = Instance.new("TextLabel")
+                    txt.Size = UDim2.new(1, 0, 1, 0)
+                    txt.BackgroundTransparency = 1
+                    txt.Text = plr.Name
+                    txt.TextColor3 = Color3.fromRGB(255, 50, 50)
+                    txt.TextScaled = true
+                    txt.Font = Enum.Font.SourceSansBold
+                    txt.Parent = billboard
+                    
+                    billboard.Parent = head
+                    table.insert(espObjects, billboard)
+                end
+            end
+        end
+    end
+end)
