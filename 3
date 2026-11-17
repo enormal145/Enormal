@@ -1,0 +1,301 @@
+-- ==========================================================
+-- ADVANCED COMBAT & SKILL AIM PANEL (Roblox Script)
+-- ==========================================================
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
+
+local localPlayer = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
+
+-- Bảng lưu trữ trạng thái cấu hình và thông số
+local Config = {
+    PlayerAim = false,
+    PlrTracer = false,
+    NpcAim = false,
+    NpcTracer = false,
+    FastAttack = false,
+    FARange = 100,
+    GunAura = false,
+    GunRange = 2500
+}
+
+-- Xóa GUI cũ nếu script được chạy lại để tránh trùng lặp
+local parentGui = pcall(function() return CoreGui.Name end) and CoreGui or localPlayer:WaitForChild("PlayerGui")
+if parentGui:FindFirstChild("CombatControlPanelHub") then
+    parentGui.CombatControlPanelHub:Destroy()
+end
+
+-- ==========================================================
+-- 1. THIẾT KẾ GIAO DIỆN (UI PANEL) CHUẨN XÁC THEO MẪU
+-- ==========================================================
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CombatControlPanelHub"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = parentGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 280, 0, 420)
+mainFrame.Position = UDim2.new(0.05, 0, 0.15, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(12, 20, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 10)
+mainCorner.Parent = mainFrame
+
+-- Tiêu đề bảng
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, 0, 0, 45)
+titleLabel.BackgroundColor3 = Color3.fromRGB(18, 30, 50)
+titleLabel.TextColor3 = Color3.fromRGB(0, 220, 255)
+titleLabel.Text = "COMBAT CONTROL HUB"
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 15
+titleLabel.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 10)
+titleCorner.Parent = titleLabel
+
+-- Hàm tạo nút Toggle (Bật/Tắt)
+local function createToggle(configKey, labelText, posY)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.92, 0, 0, 38)
+    btn.Position = UDim2.new(0.04, 0, 0, posY)
+    btn.BackgroundColor3 = Color3.fromRGB(22, 38, 62)
+    btn.TextColor3 = Color3.fromRGB(240, 240, 240)
+    btn.Text = "  " .. labelText
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize, btn.TextXAlignment = 13, Enum.TextXAlignment.Left
+    btn.Parent = mainFrame
+    
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(0, 70, 1, 0)
+    statusLabel.Position = UDim2.new(1, -75, 0, 0)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    statusLabel.Text = "OFF"
+    statusLabel.Font = Enum.Font.GothamBold
+    statusLabel.TextSize = 13
+    statusLabel.Parent = btn
+
+    btn.MouseButton1Click:Connect(function()
+        Config[configKey] = not Config[configKey]
+        if Config[configKey] then
+            statusLabel.Text = "ON"
+            statusLabel.TextColor3 = Color3.fromRGB(0, 255, 128)
+            btn.BackgroundColor3 = Color3.fromRGB(28, 55, 90)
+        else
+            statusLabel.Text = "OFF"
+            statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+            btn.BackgroundColor3 = Color3.fromRGB(22, 38, 62)
+        end
+    end)
+end
+
+-- Hàm tạo ô nhập thông số (TextBox)
+local function createInputBox(configKey, labelText, defaultVal, posY)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.55, 0, 0, 38)
+    label.Position = UDim2.new(0.04, 0, 0, posY)
+    label.BackgroundColor3 = Color3.fromRGB(22, 38, 62)
+    label.TextColor3 = Color3.fromRGB(240, 240, 240)
+    label.Text = "  " .. labelText
+    label.Font = Enum.Font.GothamSemibold
+    label.TextSize, label.TextXAlignment = 13, Enum.TextXAlignment.Left
+    label.Parent = mainFrame
+    Instance.new("UICorner", label).CornerRadius = UDim.new(0, 6)
+
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(0.35, 0, 0, 38)
+    box.Position = UDim2.new(0.61, 0, 0, posY)
+    box.BackgroundColor3 = Color3.fromRGB(15, 25, 42)
+    box.TextColor3 = Color3.fromRGB(0, 255, 255)
+    box.Text = tostring(defaultVal)
+    box.Font = Enum.Font.GothamBold
+    box.TextSize = 14
+    box.Parent = mainFrame
+    Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
+
+    box.FocusLost:Connect(function()
+        local val = tonumber(box.Text)
+        if val then
+            Config[configKey] = val
+        else
+            box.Text = tostring(Config[configKey])
+        end
+    end)
+end
+
+-- Xây dựng giao diện các tính năng
+createToggle("PlayerAim", "Player Aim 👤", 55)
+createToggle("PlrTracer", "Plr Tracer ✏️", 98)
+createToggle("NpcAim", "NPC Aim 👾", 141)
+createToggle("NpcTracer", "NPC Tracer ✏️", 184)
+createToggle("FastAttack", "Fast Attack ⚡", 227)
+createInputBox("FARange", "FA Range:", 100, 270)
+createToggle("GunAura", "Gun Aura 🎯", 313)
+createInputBox("GunRange", "Gun Range:", 2500, 356)
+
+
+-- ==========================================================
+-- 2. HỆ THỐNG XỬ LÝ LOGIC (SKILL AIM & COMBAT)
+-- ==========================================================
+
+-- Hàm tìm mục tiêu gần nhất (Player hoặc NPC)
+local function getClosestTarget(isNpc)
+    local closest = nil
+    local shortestDist = math.huge
+    local myChar = localPlayer.Character
+    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return nil end
+    local myPos = myChar.HumanoidRootPart.Position
+
+    if isNpc then
+        for _, obj in ipairs(Workspace:GetChildren()) do
+            if obj:FindFirstChild("Humanoid") and obj:FindFirstChild("HumanoidRootPart") then
+                if not Players:GetPlayerFromCharacter(obj) and obj ~= myChar then
+                    local hum = obj:FindFirstChild("Humanoid")
+                    if hum and hum.Health > 0 then
+                        local dist = (obj.HumanoidRootPart.Position - myPos).Magnitude
+                        if dist < shortestDist then
+                            shortestDist = dist
+                            closest = obj
+                        end
+                    end
+                end
+            end
+        end
+    else
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= localPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                local hum = plr.Character:FindFirstChild("Humanoid")
+                if hum and hum.Health > 0 then
+                    local dist = (plr.Character.HumanoidRootPart.Position - myPos).Magnitude
+                    if dist < shortestDist then
+                        shortestDist = dist
+                        closest = plr.Character
+                    end
+                end
+            end
+        end
+    end
+    return closest
+end
+
+-- TÍNH NĂNG SKILL AIM (Định hướng chiêu thức mà KHÔNG KHÓA CAMERA)
+-- Khi bạn dùng kỹ năng / nhấn đánh (Tool Activated), nhân vật sẽ tự hướng về mục tiêu trong tích tắc.
+local function setupSkillAim(tool)
+    if not tool:IsA("Tool") then return end
+    
+    tool.Activated:Connect(function()
+        local myChar = localPlayer.Character
+        if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return end
+        local hrp = myChar.HumanoidRootPart
+        
+        -- Nếu bật Player Aim
+        if Config.PlayerAim then
+            local target = getClosestTarget(false)
+            if target and target:FindFirstChild("HumanoidRootPart") then
+                local tPos = target.HumanoidRootPart.Position
+                -- Xoay nhân vật về hướng kẻ địch theo trục Y để tung chiêu chính xác
+                hrp.CFrame = CFrame.new(hrp.Position, Vector3.new(tPos.X, hrp.Position.Y, tPos.Z))
+            end
+        end
+        
+        -- Nếu bật NPC Aim
+        if Config.NpcAim then
+            local target = getClosestTarget(true)
+            if target and target:FindFirstChild("HumanoidRootPart") then
+                local tPos = target.HumanoidRootPart.Position
+                hrp.CFrame = CFrame.new(hrp.Position, Vector3.new(tPos.X, hrp.Position.Y, tPos.Z))
+            end
+        end
+    end)
+end
+
+-- Lắng nghe nhân vật và vũ khí hiện tại
+local function onCharacterAdded(char)
+    char.ChildAdded:Connect(setupSkillAim)
+    for _, child in ipairs(char:GetChildren()) do
+        setupSkillAim(child)
+    end
+end
+
+if localPlayer.Character then
+    onCharacterAdded(localPlayer.Character)
+end
+localPlayer.CharacterAdded:Connect(onCharacterAdded)
+
+
+-- Vòng lặp RenderStepped xử lý Tracer và Combat phụ trợ
+RunService.RenderStepped:Connect(function()
+    local myChar = localPlayer.Character
+    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return end
+
+    -- 1. Plr Tracer (Vẽ chỉ dẫn tới người chơi khác)
+    if Config.PlrTracer then
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= localPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
+                local head = plr.Character.Head
+                if not head:FindFirstChild("PlrTracerGui") then
+                    local bb = Instance.new("BillboardGui")
+                    bb.Name = "PlrTracerGui"
+                    bb.Size = UDim2.new(0, 40, 0, 40)
+                    bb.Adornee = head
+                    bb.AlwaysOnTop = true
+                    
+                    local dot = Instance.new("Frame")
+                    dot.Size = UDim2.new(1, 0, 1, 0)
+                    dot.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
+                    dot.BorderSizePixel = 0
+                    Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
+                    dot.Parent = bb
+                    bb.Parent = head
+                end
+            end
+        end
+    else
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr.Character and plr.Character:FindFirstChild("Head") and plr.Character.Head:FindFirstChild("PlrTracerGui") then
+                plr.Character.Head.PlrTracerGui:Destroy()
+            end
+        end
+    end
+
+    -- 2. NPC Tracer (Vẽ chỉ dẫn tới NPC)
+    if Config.NpcTracer then
+        for _, obj in ipairs(Workspace:GetChildren()) do
+            if obj:FindFirstChild("Humanoid") and obj:FindFirstChild("Head") and not Players:GetPlayerFromCharacter(obj) then
+                local head = obj.Head
+                if not head:FindFirstChild("NpcTracerGui") then
+                    local bb = Instance.new("BillboardGui")
+                    bb.Name = "NpcTracerGui"
+                    bb.Size = UDim2.new(0, 40, 0, 40)
+                    bb.Adornee = head
+                    bb.AlwaysOnTop = true
+                    
+                    local dot = Instance.new("Frame")
+                    dot.Size = UDim2.new(1, 0, 1, 0)
+                    dot.BackgroundColor3 = Color3.fromRGB(255, 120, 0)
+                    dot.BorderSizePixel = 0
+                    Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
+                    dot.Parent = bb
+                    bb.Parent = head
+                end
+            end
+        end
+    else
+        for _, obj in ipairs(Workspace:GetChildren()) do
+            if obj:FindFirstChild("Head") and obj.Head:FindFirstChild("NpcTracerGui") then
+                obj.Head.NpcTracerGui:Destroy()
+            end
+        end
+    end
+end)
