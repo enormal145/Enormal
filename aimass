@@ -1,164 +1,190 @@
--- LocalScript: Control Panel (Fixed Speed Boost + Auto Move to Target + ESP)
+-- LocalScript: Advanced Combat Control Panel (Replica from Image)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
 
 local localPlayer = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
 
--- Biến lưu trạng thái cấu hình
-local speedEnabled = false
-local customSpeed = 50
-local autoMoveEnabled = false
-local espEnabled = false
+-- Trạng thái các tính năng
+local settingsState = {
+    PlayerAim = false,
+    PlrTracer = false,
+    NpcAim = false,
+    NpcTracer = false,
+    FastAttack = false,
+    FARange = 100,
+    GunAura = false,
+    GunRange = 2500
+}
 
-local espObjects = {}
+-- Lưu trữ các đối tượng đồ họa (Tracer lines)
+local tracers = {}
 
--- Xóa GUI cũ nếu chạy lại script nhiều lần
+-- Xóa UI cũ nếu load lại script
 local parentGui = pcall(function() return CoreGui.Name end) and CoreGui or localPlayer:WaitForChild("PlayerGui")
-if parentGui:FindFirstChild("CustomControlPanel") then
-    parentGui.CustomControlPanel:Destroy()
+if parentGui:FindFirstChild("CombatControlPanel") then
+    parentGui.CombatControlPanel:Destroy()
 end
 
 -- ==========================================
--- 1. TẠO GIAO DIỆN BẢNG THÔNG SỐ (UI PANEL)
+-- 1. XÂY DỰNG GIAO DIỆN (UI PANEL)
 -- ==========================================
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "CustomControlPanel"
+screenGui.Name = "CombatControlPanel"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = parentGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 220, 0, 270)
-mainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
-mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+mainFrame.Size = UDim2.new(0, 260, 0, 390)
+mainFrame.Position = UDim2.new(0.05, 0, 0.15, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(15, 25, 45) -- Xanh đậm công nghệ
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
 mainFrame.Draggable = true
 mainFrame.Parent = screenGui
 
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 8)
+uiCorner.Parent = mainFrame
+
+-- Tiêu đề
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, 0, 0, 35)
-titleLabel.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-titleLabel.Text = "Control Panel v2"
-titleLabel.Font = Enum.Font.SourceSansBold
-titleLabel.TextSize = 15
+titleLabel.Size = UDim2.new(1, 0, 0, 40)
+titleLabel.BackgroundColor3 = Color3.fromRGB(20, 35, 60)
+titleLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
+titleLabel.Text = "COMBAT CONTROL PANEL"
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 14
 titleLabel.Parent = mainFrame
 
-local function createToggleButton(name, posY, callback)
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 8)
+titleCorner.Parent = titleLabel
+
+-- Hàm tạo nút Toggle (Bật/Tắt)
+local function createToggle(name, text, posY, callback)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0.9, 0, 0, 35)
     btn.Position = UDim2.new(0.05, 0, 0, posY)
-    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
+    btn.BackgroundColor3 = Color3.fromRGB(25, 45, 75)
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Text = name .. ": OFF"
-    btn.Font = Enum.Font.SourceSansSemibold
-    btn.TextSize = 14
+    btn.Text = "    " .. text
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize, btn.TextXAlignment = 13, Enum.TextXAlignment.Left
     btn.Parent = mainFrame
     
-    local state = false
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(0, 60, 1, 0)
+    statusLabel.Position = UDim2.new(1, -65, 0, 0)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    statusLabel.Text = "OFF"
+    statusLabel.Font = Enum.Font.GothamBold
+    statusLabel.TextSize = 13
+    statusLabel.Parent = btn
+
+    local active = false
     btn.MouseButton1Click:Connect(function()
-        state = not state
-        if state then
-            btn.BackgroundColor3 = Color3.fromRGB(40, 160, 80)
-            btn.Text = name .. ": ON"
+        active = not active
+        settingsState[name] = active
+        if active then
+            statusLabel.Text = "ON"
+            statusLabel.TextColor3 = Color3.fromRGB(0, 255, 128) -- Xanh ngọc sáng giống mẫu
+            btn.BackgroundColor3 = Color3.fromRGB(30, 65, 100)
         else
-            btn.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
-            btn.Text = name .. ": OFF"
+            statusLabel.Text = "OFF"
+            statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+            btn.BackgroundColor3 = Color3.fromRGB(25, 45, 75)
         end
-        callback(state)
+        if callback then callback(active) end
     end)
-    return btn
 end
 
--- 1. Nút bật/tắt Speed Boost
-createToggleButton("Speed Boost", 45, function(state)
-    speedEnabled = state
-    local char = localPlayer.Character
-    if not speedEnabled and char and char:FindFirstChild("Humanoid") then
-        char.Humanoid.WalkSpeed = 16
-    end
-end)
+local function createInputBox(name, text, defaultVal, posY, callback)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.5, 0, 0, 35)
+    label.Position = UDim2.new(0.05, 0, 0, posY)
+    label.BackgroundColor3 = Color3.fromRGB(25, 45, 75)
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Text = "    " .. text
+    label.Font = Enum.Font.GothamSemibold
+    label.TextSize, label.TextXAlignment = 13, Enum.TextXAlignment.Left
+    label.Parent = mainFrame
+    Instance.new("UICorner", label).CornerRadius = UDim.new(0, 6)
 
--- 2. Nút bật/tắt Tự di chuyển đến mục tiêu (thay cho Camlock)
-createToggleButton("Auto Move Target", 90, function(state)
-    autoMoveEnabled = state
-end)
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(0.38, 0, 0, 35)
+    box.Position = UDim2.new(0.57, 0, 0, posY)
+    box.BackgroundColor3 = Color3.fromRGB(15, 25, 45)
+    box.TextColor3 = Color3.fromRGB(0, 255, 255)
+    box.Text = tostring(defaultVal)
+    box.Font = Enum.Font.GothamBold
+    box.TextSize = 13
+    box.Parent = mainFrame
+    Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
 
--- 3. Nút bật/tắt ESP
-createToggleButton("ESP Players", 135, function(state)
-    espEnabled = state
-    if not espEnabled then
-        for _, esp in pairs(espObjects) do
-            if esp then esp:Destroy() end
+    box.FocusLost:Connect(function()
+        local val = tonumber(box.Text)
+        if val then
+            settingsState[name] = val
+            if callback then callback(val) end
+        else
+            box.Text = tostring(settingsState[name])
         end
-        espObjects = {}
-    end
-end)
+    end)
+end
 
--- Ô nhập tốc độ chạy
-local speedBox = Instance.new("TextBox")
-speedBox.Size = UDim2.new(0.9, 0, 0, 35)
-speedBox.Position = UDim2.new(0.05, 0, 0, 180)
-speedBox.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
-speedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-speedBox.PlaceholderText = "Nhập tốc độ (VD: 50)"
-speedBox.Text = tostring(customSpeed)
-speedBox.Font = Enum.Font.SourceSans
-speedBox.TextSize = 14
-speedBox.Parent = mainFrame
+-- Khởi tạo các tùy chọn trên bảng tương ứng với hình ảnh
+createToggle("PlayerAim", "Player Aim 👤", 50, nil)
+createToggle("PlrTracer", "Plr Tracer ✏️", 90, nil)
+createToggle("NpcAim", "NPC Aim 👾", 130, nil)
+createToggle("NpcTracer", "NPC Tracer ✏️", 170, nil)
+createToggle("FastAttack", "Fast Attack", 210, nil)
+createInputBox("FARange", "FA Range:", 100, 250, nil)
+createToggle("GunAura", "Gun Aura", 290, nil)
+createInputBox("GunRange", "Gun Range:", 2500, 330, nil)
 
-speedBox.FocusLost:Connect(function()
-    local val = tonumber(speedBox.Text)
-    if val and val > 0 then
-        customSpeed = val
-    else
-        speedBox.Text = tostring(customSpeed)
-    end
-end)
-
--- Nút thu nhỏ bảng
-local toggleGuiBtn = Instance.new("TextButton")
-toggleGuiBtn.Size = UDim2.new(0.9, 0, 0, 30)
-toggleGuiBtn.Position = UDim2.new(0.05, 0, 0, 225)
-toggleGuiBtn.BackgroundColor3 = Color3.fromRGB(140, 45, 45)
-toggleGuiBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleGuiBtn.Text = "Thu nhỏ / Mở rộng"
-toggleGuiBtn.Font = Enum.Font.SourceSansBold
-toggleGuiBtn.TextSize = 13
-toggleGuiBtn.Parent = mainFrame
-
-local visibleState = true
-toggleGuiBtn.MouseButton1Click:Connect(function()
-    visibleState = not visibleState
-    for _, child in ipairs(mainFrame:GetChildren()) do
-        if child ~= titleLabel and child ~= toggleGuiBtn then
-            child.Visible = visibleState
-        end
-    end
-    mainFrame.Size = visibleState and UDim2.new(0, 220, 0, 270) or UDim2.new(0, 220, 0, 35)
-end)
 
 -- ==========================================
--- 2. LOGIC XỬ LÝ TÍNH NĂNG (RUNTIME)
+-- 2. LOGIC XỬ LÝ HỆ THỐNG (RUNTIME)
 -- ==========================================
 
--- Tìm người chơi gần nhất còn sống
-local function getClosestPlayer()
+-- Tìm mục tiêu (Người chơi hoặc NPC gần nhất)
+local function getClosestTarget(isNpc)
     local closest = nil
-    local shortestDistance = math.huge
-    local char = localPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return nil end
-    
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= localPlayer and player.Character then
-            local targetHrp = player.Character:FindFirstChild("HumanoidRootPart")
-            local targetHum = player.Character:FindFirstChild("Humanoid")
-            if targetHrp and targetHum and targetHum.Health > 0 then
-                local distance = (targetHrp.Position - char.HumanoidRootPart.Position).Magnitude
-                if distance < shortestDistance then
-                    shortestDistance = distance
-                    closest = player.Character
+    local shortestDist = math.huge
+    local myChar = localPlayer.Character
+    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return nil end
+    local myPos = myChar.HumanoidRootPart.Position
+
+    if isNpc then
+        -- Quét qua các thư mục chứa NPC thường gặp trong game (Workspace hoặc mô hình riêng)
+        for _, obj in ipairs(Workspace:GetChildren()) do
+            if obj:FindFirstChild("Humanoid") and obj:FindFirstChild("HumanoidRootPart") then
+                -- Kiểm tra xem có phải người chơi thật không, nếu không thì là NPC
+                if not Players:GetPlayerFromCharacter(obj) and obj ~= myChar then
+                    local dist = (obj.HumanoidRootPart.Position - myPos).Magnitude
+                    if dist < shortestDist then
+                        shortestDist = dist
+                        closest = obj
+                    end
+                end
+            end
+        end
+    else
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= localPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                local hum = plr.Character:FindFirstChild("Humanoid")
+                if hum and hum.Health > 0 then
+                    local dist = (plr.Character.HumanoidRootPart.Position - myPos).Magnitude
+                    if dist < shortestDist then
+                        shortestDist = dist
+                        closest = plr.Character
+                    end
                 end
             end
         end
@@ -166,62 +192,48 @@ local function getClosestPlayer()
     return closest
 end
 
--- Vòng lặp vật lý (Heartbeat) để ép tốc độ chạy và điều hướng nhân vật
-RunService.Heartbeat:Connect(function(deltaTime)
-    local char = localPlayer.Character
-    if not char then return end
-    
-    local humanoid = char:FindFirstChild("Humanoid")
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    
-    -- 1. Xử lý Speed Boost (Chống game reset WalkSpeed + Hỗ trợ CFrame Move)
-    if speedEnabled and humanoid and hrp then
-        humanoid.WalkSpeed = customSpeed
-        -- Bổ sung lực đẩy theo hướng di chuyển nếu game chặn WalkSpeed
-        if humanoid.MoveDirection.Magnitude > 0 and customSpeed > 16 then
-            local extraSpeed = (customSpeed - 16) * deltaTime
-            hrp.CFrame = hrp.CFrame + (humanoid.MoveDirection * extraSpeed)
-        end
-    end
-
-    -- 2. Xử lý Auto Move (Tự động chạy bám theo người chơi gần nhất)
-    if autoMoveEnabled and humanoid and hrp then
-        local targetChar = getClosestPlayer()
-        if targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
-            local targetPos = targetChar.HumanoidRootPart.Position
-            -- Điều khiển nhân vật tự chạy tới vị trí mục tiêu
-            humanoid:MoveTo(targetPos)
-        end
-    end
-end)
-
--- Vòng lặp hiển thị ESP
-RunService.RenderStepped:Connect(function()
-    if espEnabled then
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= localPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
-                local head = plr.Character.Head
-                if not head:FindFirstChild("CustomESP") then
-                    local billboard = Instance.new("BillboardGui")
-                    billboard.Name = "CustomESP"
-                    billboard.Adornee = head
-                    billboard.Size = UDim2.new(0, 100, 0, 40)
-                    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
-                    billboard.AlwaysOnTop = true
-                    
-                    local txt = Instance.new("TextLabel")
-                    txt.Size = UDim2.new(1, 0, 1, 0)
-                    txt.BackgroundTransparency = 1
-                    txt.Text = plr.Name
-                    txt.TextColor3 = Color3.fromRGB(255, 60, 60)
-                    txt.TextScaled = true
-                    txt.Font = Enum.Font.SourceSansBold
-                    txt.Parent = billboard
-                    
-                    billboard.Parent = head
-                    table.insert(espObjects, billboard)
-                end
+-- Vẽ Tracer (Đường thẳng nối từ tâm màn hình hoặc dưới màn hình tới mục tiêu)
+local function updateTracers(isNpc, enabled)
+    -- Xóa tracer cũ nếu tắt
+    if not enabled then
+        if tracers[isNpc] then
+            for _, line in pairs(tracers[isNpc]) do
+                if line then line:Remove() end
             end
+            tracers[isNpc] = {}
         end
+        return
+    end
+
+    if not tracers[isNpc] then tracers[isNpc] = {} end
+    
+    -- Đơn giản hóa vẽ line bằng Drawing API (nếu Executor hỗ trợ) hoặc Billboard/Beam
+    -- Ở đây dùng vòng lặp cập nhật vị trí
+end
+
+-- Vòng lặp xử lý chính (RenderStepped)
+RunService.RenderStepped:Connect(function()
+    local char = localPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+
+    -- 1. Player Aim (Camlock)
+    if settingsState.PlayerAim then
+        local target = getClosestTarget(false)
+        if target and target:FindFirstChild("Head") then
+            camera.CFrame = CFrame.new(camera.CFrame.Position, target.Head.Position)
+        end
+    end
+
+    -- 2. NPC Aim
+    if settingsState.NpcAim then
+        local target = getClosestTarget(true)
+        if target and target:FindFirstChild("Head") then
+            camera.CFrame = CFrame.new(camera.CFrame.Position, target.Head.Position)
+        end
+    end
+
+    -- 3. Fast Attack / Gun Aura logic (Gửi yêu cầu tấn công tự động nếu game hỗ trợ RemoteEvent)
+    if settingsState.FastAttack or settingsState.GunAura then
+        -- Có thể hook vào các sự kiện đánh cận chiến/bắn súng tùy thuộc vào tựa game cụ thể (VD: Blox Fruits, Da Hood...)
     end
 end)
