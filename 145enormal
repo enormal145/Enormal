@@ -1,0 +1,396 @@
+-- ==========================================================
+-- eNormal Combat Control Panel & Hub (Direct Load)
+-- ==========================================================
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local localPlayer = Players.LocalPlayer
+local PlayerGui = localPlayer:WaitForChild("PlayerGui")
+local camera = Workspace.CurrentCamera
+
+-- Bảng cấu hình lưu trữ trạng thái các tính năng
+local Config = {
+    PlayerAim = false,
+    PlrTracer = false,
+    NpcAim = false,
+    NpcTracer = false,
+    FastAttack = false,
+    FARange = 100,
+    GunAura = false,
+    GunRange = 2500
+}
+
+-- Xóa GUI cũ nếu chạy lại script nhiều lần tránh bị chồng chéo
+local parentGui = pcall(function() return CoreGui.Name end) and CoreGui or PlayerGui
+if parentGui:FindFirstChild("eNormalControlPanel") then
+    parentGui.eNormalControlPanel:Destroy()
+end
+
+-- ==========================================================
+-- 1. XÂY DỰNG GIAO DIỆN (UI PANEL) eNORMAL CHUẨN ĐẸP
+-- ==========================================================
+local gui = Instance.new("ScreenGui")
+gui.Name = "eNormalControlPanel"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local parent = PlayerGui
+pcall(function()
+    if gethui then parent = gethui() end
+end)
+gui.Parent = parent
+
+local function create(class, props, parentObject)
+    local obj = Instance.new(class)
+    for property, value in pairs(props) do
+        obj[property] = value
+    end
+    obj.Parent = parentObject
+    return obj
+end
+
+local function corner(object, radius)
+    create("UICorner", { CornerRadius = UDim.new(0, radius) }, object)
+end
+
+local function stroke(object, color, thickness, transparency)
+    return create("UIStroke", {
+        Color = color,
+        Thickness = thickness,
+        Transparency = transparency or 0,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    }, object)
+end
+
+local function tween(object, duration, properties)
+    local animation = TweenService:Create(
+        object,
+        TweenInfo.new(duration, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+        properties
+    )
+    animation:Play()
+    return animation
+end
+
+-- Hiệu ứng nền mờ nhẹ và khung sáng (Glow)
+local background = create("Frame", {
+    Size = UDim2.fromScale(1, 1),
+    BackgroundColor3 = Color3.fromRGB(3, 4, 7),
+    BackgroundTransparency = 0.5,
+    BorderSizePixel = 0
+}, gui)
+
+local glow = create("Frame", {
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Position = UDim2.fromScale(0.5, 0.5),
+    Size = UDim2.fromOffset(300, 440),
+    BackgroundColor3 = Color3.fromRGB(0, 102, 255),
+    BackgroundTransparency = 0.85,
+    BorderSizePixel = 0
+}, background)
+corner(glow, 20)
+
+local mainFrame = create("Frame", {
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Position = UDim2.fromScale(0.5, 0.5),
+    Size = UDim2.fromOffset(280, 420),
+    BackgroundColor3 = Color3.fromRGB(12, 20, 35),
+    BackgroundTransparency = 0.02,
+    BorderSizePixel = 0,
+    Active = true,
+    Draggable = true,
+    ClipsDescendants = false
+}, background)
+corner(mainFrame, 14)
+stroke(mainFrame, Color3.fromRGB(0, 115, 255), 1.5, 0.2)
+
+create("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(15, 25, 45)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 12, 22))
+    }),
+    Rotation = 45
+}, mainFrame)
+
+-- Tiêu đề eNormal Hub
+local titleLabel = create("TextLabel", {
+    Size = UDim2.new(1, 0, 0, 45),
+    BackgroundColor3 = Color3.fromRGB(18, 30, 50),
+    TextColor3 = Color3.fromRGB(0, 220, 255),
+    Text = "eNORMAL HUB",
+    Font = Enum.Font.GothamBold,
+    TextSize = 15,
+    Parent = mainFrame
+} )
+corner(titleLabel, 14)
+
+-- Nút thu nhỏ / đóng bảng (X)
+local closeBtn = create("TextButton", {
+    Position = UDim2.new(1, -38, 0, 10),
+    Size = UDim2.fromOffset(26, 26),
+    BackgroundColor3 = Color3.fromRGB(25, 40, 65),
+    Text = "✕",
+    TextColor3 = Color3.fromRGB(200, 220, 255),
+    TextSize = 12,
+    Font = Enum.Font.GothamBold,
+    AutoButtonColor = false,
+    ZIndex = 5
+}, mainFrame)
+corner(closeBtn, 8)
+stroke(closeBtn, Color3.fromRGB(50, 80, 130), 1, 0.3)
+
+closeBtn.MouseButton1Click:Connect(function()
+    tween(mainFrame, 0.15, { Size = UDim2.fromOffset(250, 380), BackgroundTransparency = 1 })
+    tween(glow, 0.15, { BackgroundTransparency = 1 })
+    task.wait(0.15)
+    gui:Destroy()
+end)
+
+-- Hàm tạo nút Toggle (Bật/Tắt)
+local function createToggle(configKey, labelText, posY)
+    local btn = create("TextButton", {
+        Size = UDim2.new(0.92, 0, 0, 36),
+        Position = UDim2.new(0.04, 0, 0, posY),
+        BackgroundColor3 = Color3.fromRGB(22, 38, 62),
+        TextColor3 = Color3.fromRGB(240, 240, 240),
+        Text = "  " .. labelText,
+        Font = Enum.Font.GothamSemibold,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        AutoButtonColor = false
+    }, mainFrame)
+    corner(btn, 6)
+    stroke(btn, Color3.fromRGB(35, 60, 95), 1, 0.4)
+
+    local statusLabel = create("TextLabel", {
+        Size = UDim2.new(0, 70, 1, 0),
+        Position = UDim2.new(1, -75, 0, 0),
+        BackgroundTransparency = 1,
+        TextColor3 = Color3.fromRGB(150, 150, 150),
+        Text = "OFF",
+        Font = Enum.Font.GothamBold,
+        TextSize = 13
+    }, btn)
+
+    btn.MouseButton1Click:Connect(function()
+        Config[configKey] = not Config[configKey]
+        if Config[configKey] then
+            statusLabel.Text = "ON"
+            statusLabel.TextColor3 = Color3.fromRGB(0, 255, 128)
+            tween(btn, 0.1, { BackgroundColor3 = Color3.fromRGB(28, 60, 100) })
+        else
+            statusLabel.Text = "OFF"
+            statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+            tween(btn, 0.1, { BackgroundColor3 = Color3.fromRGB(22, 38, 62) })
+        end
+    end)
+end
+
+-- Hàm tạo ô nhập thông số (TextBox cho Range)
+local function createInputBox(configKey, labelText, defaultVal, posY)
+    local label = create("TextLabel", {
+        Size = UDim2.new(0.55, 0, 0, 36),
+        Position = UDim2.new(0.04, 0, 0, posY),
+        BackgroundColor3 = Color3.fromRGB(22, 38, 62),
+        TextColor3 = Color3.fromRGB(240, 240, 240),
+        Text = "  " .. labelText,
+        Font = Enum.Font.GothamSemibold,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left
+    }, mainFrame)
+    corner(label, 6)
+    stroke(label, Color3.fromRGB(35, 60, 95), 1, 0.4)
+
+    local box = create("TextBox", {
+        Size = UDim2.new(0.35, 0, 0, 36),
+        Position = UDim2.new(0.61, 0, 0, posY),
+        BackgroundColor3 = Color3.fromRGB(15, 25, 42),
+        TextColor3 = Color3.fromRGB(0, 255, 255),
+        Text = tostring(defaultVal),
+        Font = Enum.Font.GothamBold,
+        TextSize = 13,
+        ClearTextOnFocus = false
+    }, mainFrame)
+    corner(box, 6)
+    stroke(box, Color3.fromRGB(35, 60, 95), 1, 0.4)
+
+    box.FocusLost:Connect(function()
+        local val = tonumber(box.Text)
+        if val then
+            Config[configKey] = val
+        else
+            box.Text = tostring(Config[configKey])
+        end
+    end)
+end
+
+-- Xây dựng bố cục các chức năng lên bảng
+createToggle("PlayerAim", "Player Aim 👤", 55)
+createToggle("PlrTracer", "Plr Tracer ✏️", 98)
+createToggle("NpcAim", "NPC Aim 👾", 141)
+createToggle("NpcTracer", "NPC Tracer ✏️", 184)
+createToggle("FastAttack", "Fast Attack ⚡", 227)
+createInputBox("FARange", "FA Range:", 100, 270)
+createToggle("GunAura", "Gun Aura 🎯", 313)
+createInputBox("GunRange", "Gun Range:", 2500, 356)
+
+
+-- ==========================================================
+-- 2. HỆ THỐNG XỬ LÝ LOGIC (SKILL AIM & COMBAT)
+-- ==========================================================
+
+-- Tìm mục tiêu gần nhất
+local function getClosestTarget(isNpc)
+    local closest = nil
+    local shortestDist = math.huge
+    local myChar = localPlayer.Character
+    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return nil end
+    local myPos = myChar.HumanoidRootPart.Position
+
+    if isNpc then
+        for _, obj in ipairs(Workspace:GetChildren()) do
+            if obj:FindFirstChild("Humanoid") and obj:FindFirstChild("HumanoidRootPart") then
+                if not Players:GetPlayerFromCharacter(obj) and obj ~= myChar then
+                    local hum = obj:FindFirstChild("Humanoid")
+                    if hum and hum.Health > 0 then
+                        local dist = (obj.HumanoidRootPart.Position - myPos).Magnitude
+                        if dist < shortestDist then
+                            shortestDist = dist
+                            closest = obj
+                        end
+                    end
+                end
+            end
+        end
+    else
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= localPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                local hum = plr.Character:FindFirstChild("Humanoid")
+                if hum and hum.Health > 0 then
+                    local dist = (plr.Character.HumanoidRootPart.Position - myPos).Magnitude
+                    if dist < shortestDist then
+                        shortestDist = dist
+                        closest = plr.Character
+                    end
+                end
+            end
+        end
+    end
+    return closest
+end
+
+-- TÍNH NĂNG SKILL AIM: Camera tự do, tự xoay hướng nhân vật vào mục tiêu khi dùng skill
+local function setupSkillAim(tool)
+    if not tool:IsA("Tool") then return end
+    
+    tool.Activated:Connect(function()
+        local myChar = localPlayer.Character
+        if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return end
+        local hrp = myChar.HumanoidRootPart
+        
+        if Config.PlayerAim then
+            local target = getClosestTarget(false)
+            if target and target:FindFirstChild("HumanoidRootPart") then
+                local tPos = target.HumanoidRootPart.Position
+                hrp.CFrame = CFrame.new(hrp.Position, Vector3.new(tPos.X, hrp.Position.Y, tPos.Z))
+            end
+        end
+        
+        if Config.NpcAim then
+            local target = getClosestTarget(true)
+            if target and target:FindFirstChild("HumanoidRootPart") then
+                local tPos = target.HumanoidRootPart.Position
+                hrp.CFrame = CFrame.new(hrp.Position, Vector3.new(tPos.X, hrp.Position.Y, tPos.Z))
+            end
+        end
+    end)
+end
+
+local function onCharacterAdded(char)
+    char.ChildAdded:Connect(setupSkillAim)
+    for _, child in ipairs(char:GetChildren()) do
+        setupSkillAim(child)
+    end
+end
+
+if localPlayer.Character then
+    onCharacterAdded(localPlayer.Character)
+end
+localPlayer.CharacterAdded:Connect(onCharacterAdded)
+
+-- Vòng lặp RenderStepped quản lý hiển thị Tracer
+RunService.RenderStepped:Connect(function()
+    local myChar = localPlayer.Character
+    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return end
+
+    -- Plr Tracer
+    if Config.PlrTracer then
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= localPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
+                local head = plr.Character.Head
+                if not head:FindFirstChild("PlrTracerGui") then
+                    local bb = Instance.new("BillboardGui")
+                    bb.Name = "PlrTracerGui"
+                    bb.Size = UDim2.new(0, 40, 0, 40)
+                    bb.Adornee = head
+                    bb.AlwaysOnTop = true
+                    
+                    local dot = Instance.new("Frame")
+                    dot.Size = UDim2.new(1, 0, 1, 0)
+                    dot.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
+                    dot.BorderSizePixel = 0
+                    corner(dot, 20)
+                    dot.Parent = bb
+                    bb.Parent = head
+                end
+            end
+        end
+    else
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr.Character and plr.Character:FindFirstChild("Head") and plr.Character.Head:FindFirstChild("PlrTracerGui") then
+                plr.Character.Head.PlrTracerGui:Destroy()
+            end
+        end
+    end
+
+    -- NPC Tracer
+    if Config.NpcTracer then
+        for _, obj in ipairs(Workspace:GetChildren()) do
+            if obj:FindFirstChild("Humanoid") and obj:FindFirstChild("Head") and not Players:GetPlayerFromCharacter(obj) then
+                local head = obj.Head
+                if not head:FindFirstChild("NpcTracerGui") then
+                    local bb = Instance.new("BillboardGui")
+                    bb.Name = "NpcTracerGui"
+                    bb.Size = UDim2.new(0, 40, 0, 40)
+                    bb.Adornee = head
+                    bb.AlwaysOnTop = true
+                    
+                    local dot = Instance.new("Frame")
+                    dot.Size = UDim2.new(1, 0, 1, 0)
+                    dot.BackgroundColor3 = Color3.fromRGB(255, 120, 0)
+                    dot.BorderSizePixel = 0
+                    corner(dot, 20)
+                    dot.Parent = bb
+                    bb.Parent = head
+                end
+            end
+        end
+    else
+        for _, obj in ipairs(Workspace:GetChildren()) do
+            if obj:FindFirstChild("Head") and obj.Head:FindFirstChild("NpcTracerGui") then
+                obj.Head.NpcTracerGui:Destroy()
+            end
+        end
+    end
+end)
+
+-- Hiệu ứng xuất hiện mượt mà
+mainFrame.Size = UDim2.fromOffset(240, 380)
+mainFrame.BackgroundTransparency = 1
+tween(mainFrame, 0.3, { Size = UDim2.fromOffset(280, 420), BackgroundTransparency = 0.02 })
+tween(glow, 0.3, { Size = UDim2.fromOffset(300, 440) })
